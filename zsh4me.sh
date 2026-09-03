@@ -1,8 +1,3 @@
-Es la mejor opción para mantener todo en un solo lugar. Integrar esa funcionalidad directamente dentro del menú de **zsh4me** permite gestionar tanto la instalación general como los ajustes finos de `setopt` / `shopt` de forma nativa sin necesidad de llamar a sub-scripts.
-
-A continuación tienes el script **`zsh4me` unificado por completo**, que incluye el nuevo menú interactivo para ajustar los parámetros de Zsh/Bash respetando las funciones y reglas de respaldo anteriores:
-
-```bash
 #!/usr/bin/env bash
 
 # ==============================================================================
@@ -27,7 +22,7 @@ ROJO_BRILLANTE='\e[91m'
 BLANCO='\e[97m'
 
 NC='\033[0m'
-ver="v.2.0"
+ver="v.2.1"
 
 info() { echo -e "${AZUL_BRILLANTE}[INFO]${RESET} $1"; }
 success() { echo -e "${VERDE_BRILLANTE}[OK]${RESET} $1"; }
@@ -82,13 +77,13 @@ detectar_distro() {
 detectar_distro
 
 if [ "$EUID" -eq 0 ] && [ -z "$SUDO_USER" ]; then
-    error "No ejecutes este script directamente como root. Úsalo como usuario normal: ./zsh4me"
+    error "No ejecutes este script directamente como root. Úsalo como usuario normal: ./zsh4me.sh"
 fi
 
 trap salir SIGINT SIGTERM
 
 salir() {
-    echo -e "\e[?25h" # Restaurar cursor por seguridad
+    echo -e "\e[?25h"
     echo ""
     echo -e "${VERDE}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo -e "${AZUL}  Saliendo de zsh4me...${RESET}"
@@ -130,49 +125,27 @@ fzf_menu_principal() {
 }
 
 # ==============================================================================
-# SUBMÓDULO: CONFIGURACIÓN INTERACTIVA DE PARÁMETROS SHELL (DE SHELL4ME)
+# SUBMÓDULO: CONFIGURACIÓN INTERACTIVA DE PARÁMETROS SHELL
 # ==============================================================================
 
 configurar_opciones_shell_interactivas() {
-    local DETECTED_SHELL=$(ps -p $PPID -o comm= 2>/dev/null | tr -d '-')
+    local TARGET_RC="$REAL_HOME/.zshrc"
+    local SHELL_NAME="Zsh"
     local MARKER_START="# === INICIO BLOQUE PERSONALIZADO SHELL4ME ==="
     local MARKER_END="# === FIN BLOQUE PERSONALIZADO SHELL4ME ==="
 
-    if [ -z "$DETECTED_SHELL" ] || [ "$DETECTED_SHELL" == "bash" ] || [ "$DETECTED_SHELL" == "sh" ]; then
-        if [[ "$SHELL" == *"zsh"* ]]; then DETECTED_SHELL="zsh"; fi
-    fi
-
-    local TARGET_RC SHELL_NAME OPCIONES
-    if [[ "$DETECTED_SHELL" == *"zsh"* ]]; then
-        TARGET_RC="$REAL_HOME/.zshrc"
-        SHELL_NAME="Zsh"
-        OPCIONES=(
-            "autocd"         "Entra a directorios directamente escribiendo solo su nombre" "on"
-            "correct"        "Corrige automáticamente la ortografía de los comandos mal escritos" "on"
-            "correctall"     "Corrige la ortografía de los argumentos y rutas de archivos" "on"
-            "globdots"       "Incluye archivos ocultos (con punto) al usar el comodín *" "off"
-            "extendedglob"   "Habilita patrones de búsqueda ultra avanzados en la terminal" "off"
-            "histignoredups" "No guarda un comando en el historial si es igual al anterior" "on"
-            "histfindnodups" "Al buscar en el historial con flechas, omite duplicados" "on"
-            "sharehistory"   "Comparte el historial de comandos en tiempo real entre pestañas" "on"
-            "bgnice"         "Ejecuta los procesos en segundo plano con menor prioridad" "on"
-            "nonomatch"      "Si un patrón de búsqueda falla, no lances error (estilo Bash)" "on"
-        )
-    else
-        TARGET_RC="$REAL_HOME/.bashrc"
-        SHELL_NAME="Bash"
-        OPCIONES=(
-            "autocd"       "Entra a directorios directamente escribiendo solo su nombre" "on"
-            "cdspell"      "Corrige errores ortográficos leves en el comando 'cd'" "on"
-            "dirspell"     "Corrige errores ortográficos al usar el Autocompletar (Tab)" "on"
-            "direxpand"    "Expande las variables al autocompletar (ej: cd \$VAR -> ruta)" "on"
-            "dotglob"      "Incluye archivos ocultos (con punto) al usar el comodín *" "off"
-            "extglob"      "Habilita el Globbing extendido (patrones de búsqueda avanzados)" "off"
-            "globstar"     "Permite usar ** para buscar recursivamente en subdirectorios" "on"
-            "checkwinsize" "Actualiza el tamaño de la ventana en Bash tras cada comando" "on"
-            "histappend"   "Añade comandos al historial en lugar de sobrescribir el archivo" "on"
-        )
-    fi
+    local OPCIONES=(
+        "autocd"         "Entra a directorios directamente escribiendo solo su nombre" "on"
+        "correct"        "Corrige automáticamente la ortografía de los comandos mal escritos" "on"
+        "correctall"     "Corrige la ortografía de los argumentos y rutas de archivos" "on"
+        "globdots"       "Incluye archivos ocultos (con punto) al usar el comodín *" "off"
+        "extendedglob"   "Habilita patrones de búsqueda ultra avanzados en la terminal" "off"
+        "histignoredups" "No guarda un comando en el historial si es igual al anterior" "on"
+        "histfindnodups" "Al buscar en el historial con flechas, omite duplicados" "on"
+        "sharehistory"   "Comparte el historial de comandos en tiempo real entre pestañas" "on"
+        "bgnice"         "Ejecuta los procesos en segundo plano con menor prioridad" "on"
+        "nonomatch"      "Si un patrón de búsqueda falla, no lances error (estilo Bash)" "on"
+    )
 
     local num_opciones=$((${#OPCIONES[@]} / 3))
     local cursor=0
@@ -185,7 +158,7 @@ configurar_opciones_shell_interactivas() {
         menu+="${CIAN}\n"
         menu+="     ZSH4ME - CONSOLA DE OPTIMIZACIÓN DE SHELL\n"
         menu+="${AZUL_BRILLANTE}--========================================================================${RESET}\n"
-        menu+=" Detectado: ${VERDE}$SHELL_NAME${RESET} -> Archivo: ${AMARILLO}$TARGET_RC${RESET} | Salir: ${MAGENTA}[Q]${RESET}\n"
+        menu+=" Configurando: ${AMARILLO}$TARGET_RC${RESET} | Salir: ${MAGENTA}[Q]${RESET}\n"
         menu+=" Navegar: ${AMARILLO}(↑ ↓)${RESET} | Alternar: ${AMARILLO}[Espacio]${RESET} | Guardar: ${AMARILLO}[Enter]${RESET}\n"
         menu+="${AZUL_BRILLANTE}--========================================================================${RESET}\n\n"
 
@@ -227,7 +200,7 @@ configurar_opciones_shell_interactivas() {
         fi
     done
 
-    # Guardado con respaldo centralizado
+    # Guardado seguro garantizando la ruta exacta
     crear_backup "$TARGET_RC"
 
     if grep -q "$MARKER_START" "$TARGET_RC"; then
@@ -236,7 +209,7 @@ configurar_opciones_shell_interactivas() {
         mv "${TARGET_RC}.tmp" "$TARGET_RC"
     fi
 
-    info "Escribiendo nuevas directivas..."
+    info "Escribiendo directivas directamente en $TARGET_RC..."
     {
         echo "$MARKER_START"
         echo "# Configuración de $SHELL_NAME - Optimizada por ZSH4ME"
@@ -246,10 +219,10 @@ configurar_opciones_shell_interactivas() {
             state="${OPCIONES[i+2]}"
             if [ "$state" == "on" ]; then
                 echo -e "\n# [ACTIVO] $desc"
-                if [ "$SHELL_NAME" == "Zsh" ]; then echo "setopt $opt 2>/dev/null || true"; else echo "shopt -s $opt 2>/dev/null || true"; fi
+                echo "setopt $opt 2>/dev/null || true"
             else
                 echo -e "\n# [INACTIVO] $desc"
-                if [ "$SHELL_NAME" == "Zsh" ]; then echo "unsetopt $opt 2>/dev/null || true"; else echo "shopt -u $opt 2>/dev/null || true"; fi
+                echo "unsetopt $opt 2>/dev/null || true"
             fi
         done
         echo -e "\n$MARKER_END"
@@ -266,13 +239,13 @@ configurar_opciones_shell_interactivas() {
 instalar_paquetes() {
     info "Instalando paquetes en $DISTRO_NAME usando $PKG_MANAGER..."
     case "$PKG_MANAGER" in
-        pacman) sudo pacman -S --needed --noconfirm zsh git curl tmux starship fzf zoxide eza bat micro ttf-jetbrains-mono-nerd ;;
+        pacman) sudo pacman -S --needed --noconfirm zsh git curl tmux starship fzf zoxide eza bat micro xclip ttf-jetbrains-mono-nerd ;;
         apt)
-            sudo apt update && sudo apt install -y zsh git curl tmux fzf zoxide bat micro
+            sudo apt update && sudo apt install -y zsh git curl tmux fzf zoxide bat micro xclip
             if ! command -v eza &>/dev/null; then sudo apt install -y eza 2>/dev/null || sudo apt install -y exa 2>/dev/null || true; fi
             if ! command -v starship &>/dev/null; then curl -sS https://starship.rs/install.sh | sh -s -- -y; fi
             ;;
-        dnf) sudo dnf install -y zsh git curl tmux starship fzf zoxide eza bat micro ;;
+        dnf) sudo dnf install -y zsh git curl tmux starship fzf zoxide eza bat micro xclip ;;
     esac
     success "Paquetes de sistema instalados correctamente."
 }
@@ -304,21 +277,31 @@ configurar_ghostty() {
     crear_backup "$GHOSTTY_CONF_FILE"
 
     cat << EOF > "$GHOSTTY_CONF_FILE"
+# Tipografía y Renderizado
 font-family = JetBrainsMono Nerd Font
 font-size = 11
 adjust-cell-height = 10%
+
+# Apariencia y Tema
 theme = Catppuccin Mocha
 background-opacity = 0.90
 window-padding-x = 12
 window-padding-y = 12
 confirm-close-surface = false
+
+# Integración y Comportamiento de Selección
 command = /usr/bin/zsh
 shell-integration = zsh
 cursor-style = block
 cursor-style-blink = false
+
+# COPIAR Y PEGAR AUTOMÁTICO
+copy-on-select = true
+clipboard-write = allow
+clipboard-read = allow
 EOF
     chown -R "$REAL_USER:$REAL_USER" "$GHOSTTY_CONF_DIR"
-    success "Ghostty configurado."
+    success "Ghostty configurado (incluyendo copiar al seleccionar)."
 }
 
 configurar_tmux() {
@@ -328,23 +311,35 @@ configurar_tmux() {
     cat << 'EOF' > "$TMUX_CONF_FILE"
 set -g default-terminal "tmux-256color"
 set -ag terminal-overrides ",xterm-256color:RGB"
+
+# Habilitar soporte de ratón y selección
 set -g mouse on
+setw -g mode-keys vi
+
+# Copiar al portapapeles del sistema al seleccionar con el ratón
+bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "xclip -selection clipboard -i"
+bind-key -T copy-mode-vi Enter send-keys -X copy-pipe-and-cancel "xclip -selection clipboard -i"
+
 set -g base-index 1
 set -g pane-base-index 1
 set-window-option -g pane-base-index 1
 set-option -g renumber-windows on
+
 unbind C-b
 set -g prefix C-a
 bind C-a send-prefix
+
 bind | split-window -h -c "#{pane_current_path}"
 bind - split-window -v -c "#{pane_current_path}"
+
 bind r source-file ~/.tmux.conf \; display "¡Configuración de Tmux recargada!"
+
 set -g status-style bg=default,fg=colour12
 set -g status-left-length 40
 set -g status-right "#[fg=colour8]%Y-%m-%d %H:%M"
 EOF
     chown "$REAL_USER:$REAL_USER" "$TMUX_CONF_FILE"
-    success "Tmux configurado."
+    success "Tmux configurado con integración de portapapeles del sistema."
 }
 
 generar_zshrc() {
@@ -483,9 +478,9 @@ menu() {
 0. ⚡ | INSTALACIÓN   | Ejecutar instalación y configuración completa.
 1. 📦 | PAQUETES      | Instalar paquetes de la distribución ($PKG_MANAGER).
 2. 🐚 | OH MY ZSH     | Instalar Oh My Zsh y plugins.
-3. ⚙️ | OPCIONES SHELL| Configurar setopt / shopt interactivamente.
-4. 👻 | GHOSTTY       | Configurar la terminal Ghostty.
-5. 🖥️ | TMUX          | Configurar el multiplexor Tmux.
+3. ⚙️ | OPCIONES SHELL| Configurar setopt interactivamente.
+4. 👻 | GHOSTTY       | Configurar Ghostty (Copy/Paste en selección incl.).
+5. 🖥️ | TMUX          | Configurar Tmux (Integración xclip e historial).
 6. 📝 | ZSHRC         | Inyectar archivo .zshrc sin borrar contenido.
 7. 🔄 | CAMBIAR SHELL | Establecer Zsh como shell predeterminada.
 8. ❌ | SALIR         | Salir del script"
@@ -509,5 +504,3 @@ menu() {
 }
 
 menu
-
-```
