@@ -22,7 +22,7 @@ ROJO_BRILLANTE='\e[91m'
 BLANCO='\e[97m'
 
 NC='\033[0m'
-ver="v.2.1"
+ver="v.2.2"
 
 info() { echo -e "${AZUL_BRILLANTE}[INFO]${RESET} $1"; }
 success() { echo -e "${VERDE_BRILLANTE}[OK]${RESET} $1"; }
@@ -123,12 +123,12 @@ fzf_menu_principal() {
         --preview-window="up:25%:border-bottom" \
         --preview="echo -e '\033[1;36mENTORNO: $DISTRO_NAME\033[0m | \033[1;33mFecha:\033[0m $date_now | \033[1;33mHost:\033[0m $host_name | \033[1;33mUsuario:\033[0m $REAL_USER'"
 }
+
 # ==============================================================================
-# SUBMÓDULO: CONFIGURACIÓN INTERACTIVA DE PARÁMETROS SHELL (CORREGIDO)
+# SUBMÓDULO: CONFIGURACIÓN INTERACTIVA DE PARÁMETROS SHELL
 # ==============================================================================
 
 configurar_opciones_shell_interactivas() {
-    # Desactivamos temporalmente el aborto automático por errores
     set +e
 
     local TARGET_RC="$REAL_HOME/.zshrc"
@@ -146,7 +146,7 @@ configurar_opciones_shell_interactivas() {
         "histfindnodups" "Omite duplicados al buscar con flechas" "on"
         "sharehistory"   "Comparte historial en tiempo real entre pestañas" "on"
         "bgnice"         "Ejecuta procesos en segundo plano con menor prioridad" "on"
-        "nonomatch"      "Si un patrón falla, no llanza error (estilo Bash)" "on"
+        "nonomatch"      "Si un patrón falla, no lanza error (estilo Bash)" "on"
     )
 
     local num_opciones=$((${#OPCIONES[@]} / 3))
@@ -179,10 +179,8 @@ configurar_opciones_shell_interactivas() {
         done
         echo -e "\n${CIAN}------------------------------------------------------------------------${RESET}"
 
-        # Lectura segura de teclado
         read -rsn1 key
 
-        # Mapeo de teclas
         if [[ "$key" == $'\x1b' ]]; then
             read -rsn2 -t 0.05 key
             case "$key" in
@@ -219,7 +217,6 @@ configurar_opciones_shell_interactivas() {
         esac
     done
 
-    # Re-activamos set -e antes de las escrituras en disco
     set -e
 
     crear_backup "$TARGET_RC"
@@ -259,13 +256,13 @@ configurar_opciones_shell_interactivas() {
 instalar_paquetes() {
     info "Instalando paquetes en $DISTRO_NAME usando $PKG_MANAGER..."
     case "$PKG_MANAGER" in
-        pacman) sudo pacman -S --needed --noconfirm zsh git curl tmux starship fzf zoxide eza bat micro xclip ttf-jetbrains-mono-nerd ;;
+        pacman) sudo pacman -S --needed --noconfirm zsh git curl tmux starship fzf zoxide eza bat micro xclip wl-clipboard ttf-jetbrains-mono-nerd ;;
         apt)
-            sudo apt update && sudo apt install -y zsh git curl tmux fzf zoxide bat micro xclip
+            sudo apt update && sudo apt install -y zsh git curl tmux fzf zoxide bat micro xclip wl-clipboard
             if ! command -v eza &>/dev/null; then sudo apt install -y eza 2>/dev/null || sudo apt install -y exa 2>/dev/null || true; fi
             if ! command -v starship &>/dev/null; then curl -sS https://starship.rs/install.sh | sh -s -- -y; fi
             ;;
-        dnf) sudo dnf install -y zsh git curl tmux starship fzf zoxide eza bat micro xclip ;;
+        dnf) sudo dnf install -y zsh git curl tmux starship fzf zoxide eza bat micro xclip wl-clipboard ;;
     esac
     success "Paquetes de sistema instalados correctamente."
 }
@@ -315,13 +312,14 @@ shell-integration = zsh
 cursor-style = block
 cursor-style-blink = false
 
-# COPIAR Y PEGAR AUTOMÁTICO
-copy-on-select = true
+# COPIAR Y PEGAR AUTOMÁTICO AL SELECCIONAR
+copy-on-select = clipboard
 clipboard-write = allow
 clipboard-read = allow
+clipboard-trim-trailing-spaces = true
 EOF
     chown -R "$REAL_USER:$REAL_USER" "$GHOSTTY_CONF_DIR"
-    success "Ghostty configurado (incluyendo copiar al seleccionar)."
+    success "Ghostty configurado con copy-on-select = clipboard."
 }
 
 configurar_tmux() {
@@ -336,9 +334,9 @@ set -ag terminal-overrides ",xterm-256color:RGB"
 set -g mouse on
 setw -g mode-keys vi
 
-# Copiar al portapapeles del sistema al seleccionar con el ratón
-bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "xclip -selection clipboard -i"
-bind-key -T copy-mode-vi Enter send-keys -X copy-pipe-and-cancel "xclip -selection clipboard -i"
+# Copiar al portapapeles del sistema (Soporte DUAL X11 / Wayland)
+bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || xclip -selection clipboard -i"
+bind-key -T copy-mode-vi Enter send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || xclip -selection clipboard -i"
 
 set -g base-index 1
 set -g pane-base-index 1
@@ -359,7 +357,7 @@ set -g status-left-length 40
 set -g status-right "#[fg=colour8]%Y-%m-%d %H:%M"
 EOF
     chown "$REAL_USER:$REAL_USER" "$TMUX_CONF_FILE"
-    success "Tmux configurado con integración de portapapeles del sistema."
+    success "Tmux configurado con soporte para portapapeles Wayland/X11."
 }
 
 generar_zshrc() {
