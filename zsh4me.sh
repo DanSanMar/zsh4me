@@ -35,38 +35,34 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_DIR="$REAL_HOME/.zsh4me_backups/backup_$TIMESTAMP"
 
 fzf_menu_principal() {
-    local host_name=$(hostname 2>/dev/null || cat /etc/hostname)
-    local date_now=$(date +"%d/%m/%Y")
-
-    # Script inline que analiza la línea seleccionada en FZF y devuelve ayuda formateada
+    # Script inline que limpia el string seleccionado y evalúa el caso exacto
     local preview_cmd='
-        opt=$(echo {} | cut -d"|" -f2 | xargs);
-        case "$opt" in
-            "INSTALACIÓN")
-                echo -e "\033[1;36m=== ⚡ INSTALACIÓN INTEGRAL ===\033[0m\n\nDespliega el entorno completo en un solo paso:\n ➔ Instala dependencias y fuentes NerdFont\n ➔ Configura Oh My Zsh y sus plugins principales\n ➔ Aplica las configuraciones de Ghostty y Tmux\n ➔ Modifica .zshrc sin perder tus ajustes previos\n ➔ Establece Zsh como tu Shell por defecto" ;;
-            "PAQUETES")
-                echo -e "\033[1;36m=== 📦 GESTOR DE PAQUETES ('$PKG_MANAGER') ===\033[0m\n\nInstala las herramientas base para tu terminal:\n ➔ zsh, git, curl, tmux, starship, fzf, zoxide\n ➔ eza, bat, micro\n ➔ Adaptadores de portapapeles (xclip, xsel, wl-clipboard)\n ➔ Fuente JetBrainsMono Nerd Font" ;;
-            "OH MY ZSH")
-                echo -e "\033[1;36m=== 🐚 OH MY ZSH & PLUGINS ===\033[0m\n\nDescarga e integra el framework Zsh:\n ➔ Autosugerencias (zsh-autosuggestions)\n ➔ Resaltado de sintaxis (zsh-syntax-highlighting)\n ➔ Autocompletados avanzados (zsh-completions)" ;;
-            "OPCIONES SHELL")
-                echo -e "\033[1;36m=== ⚙️ OPTIMIZACIÓN INTERACTIVA DE SHELL ===\033[0m\n\nConsola visual para activar o desactivar parámetros 'setopt':\n ➔ autocd, autocorrect de comandos\n ➔ Control de duplicados en historial\n ➔ Historial compartido entre terminales en tiempo real" ;;
-            "GHOSTTY")
-                echo -e "\033[1;36m=== 👻 CONFIGURACIÓN DE GHOSTTY ===\033[0m\n\nGenera el archivo ~/.config/ghostty/config con:\n ➔ Tema Catppuccin Mocha y transparencia al 90%\n ➔ Tipografía JetBrainsMono Nerd Font\n ➔ Portapapeles bidireccional integrado con el SO" ;;
-            "TMUX")
-                echo -e "\033[1;36m=== 🖥️ MULTIPLEXOR TMUX ===\033[0m\n\nAplica un ~/.tmux.conf optimizado para desarrolladores:\n ➔ Navegación e integración completa de ratón\n ➔ Copiado automático al portapapeles del SO al seleccionar\n ➔ Atajos de división con Prefix Ctrl+A" ;;
-            "PORTAPAPELES")
-                echo -e "\033[1;36m=== 📋 PUENTE DE PORTAPAPELES UNIVERSAL ===\033[0m\n\nResuelve los problemas de copiar y pegar:\n ➔ Configura el portapapeles global para Wayland y X11\n ➔ Vincula la selección de Ghostty, Tmux y Micro con el SO" ;;
-            "ZSHRC")
-                echo -e "\033[1;36m=== 📝 INYECCIÓN DE .ZSHRC ===\033[0m\n\nActualiza la configuración de la Shell:\n ➔ Añade alias modernos (ls -> eza, cat -> bat)\n ➔ Integra Starship, FZF y Zoxide\n ➔ Preserva intactos tus scripts y configuraciones personalizadas" ;;
-            "CAMBIAR SHELL")
-                echo -e "\033[1;36m=== 🔄 SHELL PREDETERMINADA ===\033[0m\n\nCambia tu Shell predeterminada de usuario a Zsh de forma segura mediante 'chsh'." ;;
-            "BACKUPS")
-                echo -e "\033[1;36m=== 🗂️ GESTOR DE RESPALDOS ===\033[0m\n\nAdministra tus puntos de restauración previos:\n ➔ Explora copias organizadas por fecha y hora\n ➔ Revisa diferencias y edita archivos con Micro\n ➔ Restaura configuraciones a su estado original" ;;
-            "SALIR")
-                echo -e "\033[1;31m=== ❌ SALIR ===\033[0m\n\nCierra el panel de administración ZSH4ME de forma segura." ;;
-            *)
-                echo -e "Selecciona una opción del menú para ver la descripción detallada de sus acciones." ;;
-        esac
+        line="{}"
+        if [[ "$line" =~ "INSTALACIÓN" ]]; then
+            echo -e "\033[1;36m=== ⚡ INSTALACIÓN INTEGRAL ===\033[0m\n\nDespliega el entorno completo en un solo paso:\n ➔ Instala dependencias y fuentes NerdFont\n ➔ Configura Oh My Zsh y sus plugins principales\n ➔ Aplica las configuraciones de Ghostty y Tmux\n ➔ Modifica .zshrc sin perder tus ajustes previos\n ➔ Establece Zsh como tu Shell por defecto"
+        elif [[ "$line" =~ "PAQUETES" ]]; then
+            echo -e "\033[1;36m=== 📦 GESTOR DE PAQUETES ('$PKG_MANAGER') ===\033[0m\n\nInstala las herramientas base para tu terminal:\n ➔ zsh, git, curl, tmux, starship, fzf, zoxide\n ➔ eza, bat, micro\n ➔ Adaptadores de portapapeles (xclip, xsel, wl-clipboard)\n ➔ Fuente JetBrainsMono Nerd Font"
+        elif [[ "$line" =~ "OH MY ZSH" ]]; then
+            echo -e "\033[1;36m=== 🐚 OH MY ZSH & PLUGINS ===\033[0m\n\nDescarga e integra el framework Zsh:\n ➔ Autosugerencias (zsh-autosuggestions)\n ➔ Resaltado de sintaxis (zsh-syntax-highlighting)\n ➔ Autocompletados avanzados (zsh-completions)"
+        elif [[ "$line" =~ "OPCIONES SHELL" ]]; then
+            echo -e "\033[1;36m=== ⚙️ OPTIMIZACIÓN INTERACTIVA DE SHELL ===\033[0m\n\nConsola visual para activar o desactivar parámetros '\''setopt'\'':\n ➔ autocd, autocorrect de comandos\n ➔ Control de duplicados en historial\n ➔ Historial compartido entre terminales en tiempo real"
+        elif [[ "$line" =~ "GHOSTTY" ]]; then
+            echo -e "\033[1;36m=== 👻 CONFIGURACIÓN DE GHOSTTY ===\033[0m\n\nGenera el archivo ~/.config/ghostty/config con:\n ➔ Tema Catppuccin Mocha y transparencia al 90%\n ➔ Tipografía JetBrainsMono Nerd Font\n ➔ Portapapeles bidireccional integrado con el SO"
+        elif [[ "$line" =~ "TMUX" ]]; then
+            echo -e "\033[1;36m=== 🖥️ MULTIPLEXOR TMUX ===\033[0m\n\nAplica un ~/.tmux.conf optimizado para desarrolladores:\n ➔ Navegación e integración completa de ratón\n ➔ Copiado automático al portapapeles del SO al seleccionar\n ➔ Atajos de división con Prefix Ctrl+A"
+        elif [[ "$line" =~ "PORTAPAPELES" ]]; then
+            echo -e "\033[1;36m=== 📋 PUENTE DE PORTAPAPELES UNIVERSAL ===\033[0m\n\nResuelve los problemas de copiar y pegar:\n ➔ Configura el portapapeles global para Wayland y X11\n ➔ Vincula la selección de Ghostty, Tmux y Micro con el SO"
+        elif [[ "$line" =~ "ZSHRC" ]]; then
+            echo -e "\033[1;36m=== 📝 INYECCIÓN DE .ZSHRC ===\033[0m\n\nActualiza la configuración de la Shell:\n ➔ Añade alias modernos (ls -> eza, cat -> bat)\n ➔ Integra Starship, FZF y Zoxide\n ➔ Preserva intactos tus scripts y configuraciones personalizadas"
+        elif [[ "$line" =~ "CAMBIAR SHELL" ]]; then
+            echo -e "\033[1;36m=== 🔄 SHELL PREDETERMINADA ===\033[0m\n\nCambia tu Shell predeterminada de usuario a Zsh de forma segura mediante '\''chsh'\''."
+        elif [[ "$line" =~ "BACKUPS" ]]; then
+            echo -e "\033[1;36m=== 🗂️ GESTOR DE RESPALDOS ===\033[0m\n\nAdministra tus puntos de restauración previos:\n ➔ Explora copias organizadas por fecha y hora\n ➔ Revisa diferencias y edita archivos con Micro\n ➔ Restaura configuraciones a su estado original"
+        elif [[ "$line" =~ "SALIR" ]]; then
+            echo -e "\033[1;31m=== ❌ SALIR ===\033[0m\n\nCierra el panel de administración ZSH4ME de forma segura."
+        else
+            echo -e "Selecciona una opción del menú para ver la descripción detallada de sus acciones."
+        fi
     '
 
     fzf --ansi \
@@ -153,22 +149,6 @@ mostrar_logo() {
     echo -e "${AMARILLO}➤ Usuario:${RESET}  ${BLANCO}${REAL_USER}${RESET}"
     echo -e "${AMARILLO}➤ Home:${RESET}     ${BLANCO}${REAL_HOME}${RESET}"
     echo -e "${CIAN}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n"
-}
-
-fzf_menu_principal() {
-    local host_name=$(hostname 2>/dev/null || cat /etc/hostname)
-    local date_now=$(date +"%d/%m/%Y")
-
-    fzf --ansi \
-        --height=15 \
-        --layout=reverse \
-        --border=rounded \
-        --prompt=" Seleccione Opción-❯ " \
-        --header="--- Z S H 4 M E  P A N E L ---" \
-        --header-lines=1 \
-        --color="border:#5fafd7,header:#af87ff,prompt:#5fb2ff,pointer:#afff00" \
-        --preview-window="up:25%:border-bottom" \
-        --preview="echo -e '\033[1;36mENTORNO: $DISTRO_NAME\033[0m | \033[1;33mFecha:\033[0m $date_now | \033[1;33mHost:\033[0m $host_name | \033[1;33mUsuario:\033[0m $REAL_USER'"
 }
 
 # ==============================================================================
