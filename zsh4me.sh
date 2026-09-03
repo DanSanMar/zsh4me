@@ -22,7 +22,7 @@ ROJO_BRILLANTE='\e[91m'
 BLANCO='\e[97m'
 
 NC='\033[0m'
-ver="v.2.4"
+ver="v.2.5"
 
 info() { echo -e "${AZUL_BRILLANTE}[INFO]${RESET} $1"; }
 success() { echo -e "${VERDE_BRILLANTE}[OK]${RESET} $1"; }
@@ -33,6 +33,53 @@ REAL_USER=${SUDO_USER:-$USER}
 REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_DIR="$REAL_HOME/.zsh4me_backups/backup_$TIMESTAMP"
+
+fzf_menu_principal() {
+    local host_name=$(hostname 2>/dev/null || cat /etc/hostname)
+    local date_now=$(date +"%d/%m/%Y")
+
+    # Script inline que analiza la línea seleccionada en FZF y devuelve ayuda formateada
+    local preview_cmd='
+        opt=$(echo {} | cut -d"|" -f2 | xargs);
+        case "$opt" in
+            "INSTALACIÓN")
+                echo -e "\033[1;36m=== ⚡ INSTALACIÓN INTEGRAL ===\033[0m\n\nDespliega el entorno completo en un solo paso:\n ➔ Instala dependencias y fuentes NerdFont\n ➔ Configura Oh My Zsh y sus plugins principales\n ➔ Aplica las configuraciones de Ghostty y Tmux\n ➔ Modifica .zshrc sin perder tus ajustes previos\n ➔ Establece Zsh como tu Shell por defecto" ;;
+            "PAQUETES")
+                echo -e "\033[1;36m=== 📦 GESTOR DE PAQUETES ('$PKG_MANAGER') ===\033[0m\n\nInstala las herramientas base para tu terminal:\n ➔ zsh, git, curl, tmux, starship, fzf, zoxide\n ➔ eza, bat, micro\n ➔ Adaptadores de portapapeles (xclip, xsel, wl-clipboard)\n ➔ Fuente JetBrainsMono Nerd Font" ;;
+            "OH MY ZSH")
+                echo -e "\033[1;36m=== 🐚 OH MY ZSH & PLUGINS ===\033[0m\n\nDescarga e integra el framework Zsh:\n ➔ Autosugerencias (zsh-autosuggestions)\n ➔ Resaltado de sintaxis (zsh-syntax-highlighting)\n ➔ Autocompletados avanzados (zsh-completions)" ;;
+            "OPCIONES SHELL")
+                echo -e "\033[1;36m=== ⚙️ OPTIMIZACIÓN INTERACTIVA DE SHELL ===\033[0m\n\nConsola visual para activar o desactivar parámetros 'setopt':\n ➔ autocd, autocorrect de comandos\n ➔ Control de duplicados en historial\n ➔ Historial compartido entre terminales en tiempo real" ;;
+            "GHOSTTY")
+                echo -e "\033[1;36m=== 👻 CONFIGURACIÓN DE GHOSTTY ===\033[0m\n\nGenera el archivo ~/.config/ghostty/config con:\n ➔ Tema Catppuccin Mocha y transparencia al 90%\n ➔ Tipografía JetBrainsMono Nerd Font\n ➔ Portapapeles bidireccional integrado con el SO" ;;
+            "TMUX")
+                echo -e "\033[1;36m=== 🖥️ MULTIPLEXOR TMUX ===\033[0m\n\nAplica un ~/.tmux.conf optimizado para desarrolladores:\n ➔ Navegación e integración completa de ratón\n ➔ Copiado automático al portapapeles del SO al seleccionar\n ➔ Atajos de división con Prefix Ctrl+A" ;;
+            "PORTAPAPELES")
+                echo -e "\033[1;36m=== 📋 PUENTE DE PORTAPAPELES UNIVERSAL ===\033[0m\n\nResuelve los problemas de copiar y pegar:\n ➔ Configura el portapapeles global para Wayland y X11\n ➔ Vincula la selección de Ghostty, Tmux y Micro con el SO" ;;
+            "ZSHRC")
+                echo -e "\033[1;36m=== 📝 INYECCIÓN DE .ZSHRC ===\033[0m\n\nActualiza la configuración de la Shell:\n ➔ Añade alias modernos (ls -> eza, cat -> bat)\n ➔ Integra Starship, FZF y Zoxide\n ➔ Preserva intactos tus scripts y configuraciones personalizadas" ;;
+            "CAMBIAR SHELL")
+                echo -e "\033[1;36m=== 🔄 SHELL PREDETERMINADA ===\033[0m\n\nCambia tu Shell predeterminada de usuario a Zsh de forma segura mediante 'chsh'." ;;
+            "BACKUPS")
+                echo -e "\033[1;36m=== 🗂️ GESTOR DE RESPALDOS ===\033[0m\n\nAdministra tus puntos de restauración previos:\n ➔ Explora copias organizadas por fecha y hora\n ➔ Revisa diferencias y edita archivos con Micro\n ➔ Restaura configuraciones a su estado original" ;;
+            "SALIR")
+                echo -e "\033[1;31m=== ❌ SALIR ===\033[0m\n\nCierra el panel de administración ZSH4ME de forma segura." ;;
+            *)
+                echo -e "Selecciona una opción del menú para ver la descripción detallada de sus acciones." ;;
+        esac
+    '
+
+    fzf --ansi \
+        --height=60% \
+        --layout=reverse \
+        --border=rounded \
+        --prompt=" Seleccione Opción ❯ " \
+        --header="--- Z S H 4 M E  P A N E L ---" \
+        --header-lines=1 \
+        --color="border:#5fafd7,header:#af87ff,prompt:#5fb2ff,pointer:#afff00" \
+        --preview-window="right:50%:border-rounded:wrap" \
+        --preview="$preview_cmd"
+}
 
 # --- HELPER CENTRALIZADO DE RESPALDOS ---
 crear_backup() {
@@ -594,17 +641,17 @@ menu() {
         mostrar_logo
 
         opciones="ICONO | OPCIÓN        | DESCRIPCIÓN
-0. ⚡ | INSTALACIÓN   | Ejecutar instalación y configuración completa.
-1. 📦 | PAQUETES      | Instalar paquetes de la distribución ($PKG_MANAGER).
-2. 🐚 | OH MY ZSH     | Instalar Oh My Zsh y plugins.
-3. ⚙️ | OPCIONES SHELL| Configurar setopt interactivamente.
-4. 👻 | GHOSTTY       | Configurar Ghostty (Copy/Paste universal incl.).
-5. 🖥️ | TMUX          | Configurar Tmux (Integración xclip/wl-clipboard).
-6. 📋 | PORTAPAPELES  | Configurar únicamente el Copy/Paste Universal.
-7. 📝 | ZSHRC         | Inyectar archivo .zshrc sin borrar contenido.
-8. 🔄 | CAMBIAR SHELL | Establecer Zsh como shell predeterminada.
-9. 🗂️ | BACKUPS       | Ver, editar con Micro y restaurar copias de respaldo.
-10. ❌ | SALIR        | Salir del script"
+0. ⚡ | INSTALACIÓN   | Desplegar entorno completo y optimizado.
+1. 📦 | PAQUETES      | Instalación de paquetes y fuentes base.
+2. 🐚 | OH MY ZSH     | Framework Zsh, plugins y completados.
+3. ⚙️ | OPCIONES SHELL| Ajustar parámetros de la shell de forma visual.
+4. 👻 | GHOSTTY       | Configurar terminal Ghostty y estilo gráfico.
+5. 🖥️ | TMUX          | Configurar multiplexor de terminal Tmux.
+6. 📋 | PORTAPAPELES  | Habilitar sincronización universal de portapapeles.
+7. 📝 | ZSHRC         | Actualizar .zshrc con alias y herramientas modernas.
+8. 🔄 | CAMBIAR SHELL | Establecer Zsh como la shell predeterminada.
+9. 🗂️ | BACKUPS       | Explorar, editar o restaurar copias de seguridad.
+10. ❌ | SALIR        | Salir del administrador zsh4me"
 
         seleccion=$(echo -e "$opciones" | fzf_menu_principal)
 
