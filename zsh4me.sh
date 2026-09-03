@@ -123,44 +123,44 @@ fzf_menu_principal() {
         --preview-window="up:25%:border-bottom" \
         --preview="echo -e '\033[1;36mENTORNO: $DISTRO_NAME\033[0m | \033[1;33mFecha:\033[0m $date_now | \033[1;33mHost:\033[0m $host_name | \033[1;33mUsuario:\033[0m $REAL_USER'"
 }
-
 # ==============================================================================
-# SUBMÓDULO: CONFIGURACIÓN INTERACTIVA DE PARÁMETROS SHELL
+# SUBMÓDULO: CONFIGURACIÓN INTERACTIVA DE PARÁMETROS SHELL (CORREGIDO)
 # ==============================================================================
 
 configurar_opciones_shell_interactivas() {
+    # Desactivamos temporalmente el aborto automático por errores
+    set +e
+
     local TARGET_RC="$REAL_HOME/.zshrc"
     local SHELL_NAME="Zsh"
     local MARKER_START="# === INICIO BLOQUE PERSONALIZADO SHELL4ME ==="
     local MARKER_END="# === FIN BLOQUE PERSONALIZADO SHELL4ME ==="
 
     local OPCIONES=(
-        "autocd"         "Entra a directorios directamente escribiendo solo su nombre" "on"
-        "correct"        "Corrige automáticamente la ortografía de los comandos mal escritos" "on"
-        "correctall"     "Corrige la ortografía de los argumentos y rutas de archivos" "on"
-        "globdots"       "Incluye archivos ocultos (con punto) al usar el comodín *" "off"
-        "extendedglob"   "Habilita patrones de búsqueda ultra avanzados en la terminal" "off"
-        "histignoredups" "No guarda un comando en el historial si es igual al anterior" "on"
-        "histfindnodups" "Al buscar en el historial con flechas, omite duplicados" "on"
-        "sharehistory"   "Comparte el historial de comandos en tiempo real entre pestañas" "on"
-        "bgnice"         "Ejecuta los procesos en segundo plano con menor prioridad" "on"
-        "nonomatch"      "Si un patrón de búsqueda falla, no lances error (estilo Bash)" "on"
+        "autocd"         "Entra a directorios escribiendo solo su nombre" "on"
+        "correct"        "Corrige automáticamente la ortografía de comandos" "on"
+        "correctall"     "Corrige ortografía de argumentos y rutas" "on"
+        "globdots"       "Incluye archivos ocultos con el comodín *" "off"
+        "extendedglob"   "Habilita patrones de búsqueda avanzados" "off"
+        "histignoredups" "Omite duplicados consecutivos en el historial" "on"
+        "histfindnodups" "Omite duplicados al buscar con flechas" "on"
+        "sharehistory"   "Comparte historial en tiempo real entre pestañas" "on"
+        "bgnice"         "Ejecuta procesos en segundo plano con menor prioridad" "on"
+        "nonomatch"      "Si un patrón falla, no llanza error (estilo Bash)" "on"
     )
 
     local num_opciones=$((${#OPCIONES[@]} / 3))
     local cursor=0
-
-    echo -ne "\e[H\e[2J\e[?25l"
+    local key=""
 
     while true; do
-        local menu=""
-        menu+="\e[H"
-        menu+="${CIAN}\n"
-        menu+="     ZSH4ME - CONSOLA DE OPTIMIZACIÓN DE SHELL\n"
-        menu+="${AZUL_BRILLANTE}--========================================================================${RESET}\n"
-        menu+=" Configurando: ${AMARILLO}$TARGET_RC${RESET} | Salir: ${MAGENTA}[Q]${RESET}\n"
-        menu+=" Navegar: ${AMARILLO}(↑ ↓)${RESET} | Alternar: ${AMARILLO}[Espacio]${RESET} | Guardar: ${AMARILLO}[Enter]${RESET}\n"
-        menu+="${AZUL_BRILLANTE}--========================================================================${RESET}\n\n"
+        clear
+        echo -e "${CIAN}========================================================================${RESET}"
+        echo -e "       ${NEGRITA}ZSH4ME - CONSOLA DE OPTIMIZACIÓN DE SHELL${RESET}"
+        echo -e "${CIAN}========================================================================${RESET}"
+        echo -e " Configurando: ${AMARILLO}$TARGET_RC${RESET}"
+        echo -e " Controles: [${AMARILLO}W/S${RESET} o ${AMARILLO}Flechas${RESET}: Navegar] | [${AMARILLO}Espacio${RESET}: Alternar] | [${AMARILLO}Enter${RESET}: Guardar] | [${AMARILLO}Q${RESET}: Cancelar]"
+        echo -e "${CIAN}------------------------------------------------------------------------${RESET}\n"
 
         local idx=0
         for ((i=0; i<${#OPCIONES[@]}; i+=3)); do
@@ -168,48 +168,69 @@ configurar_opciones_shell_interactivas() {
             local desc="${OPCIONES[i+1]}"
             local state="${OPCIONES[i+2]}"
             local check="[ ]"
-            if [ "$state" == "on" ]; then check="[X]"; fi
+            [ "$state" == "on" ] && check="[X]"
 
             if [ $idx -eq $cursor ]; then
-                menu+=" ${VERDE_BRILLANTE}➔ $check $opt:${RESET} $desc\n"
+                echo -e " ${VERDE_BRILLANTE}➔ $check $opt:${RESET} $desc"
             else
-                menu+="    $check $opt: $desc\n"
+                echo -e "    $check $opt: $desc"
             fi
             ((idx++))
         done
-        menu+="\n${CIAN}------------------------------------------------------------------------${RESET}\e[K"
+        echo -e "\n${CIAN}------------------------------------------------------------------------${RESET}"
 
-        printf "$menu"
+        # Lectura segura de teclado
+        read -rsn1 key
 
-        IFS= read -rsn1 key
-        if [[ $key == $'\x1b' ]]; then
-            read -rsn2 -t 0.1 key
+        # Mapeo de teclas
+        if [[ "$key" == $'\x1b' ]]; then
+            read -rsn2 -t 0.05 key
             case "$key" in
-                "[A") ((cursor--)); [ $cursor -lt 0 ] && cursor=$((num_opciones - 1)) ;;
-                "[B") ((cursor++)); [ $cursor -ge $num_opciones ] && cursor=0 ;;
+                "[A") key="w" ;;
+                "[B") key="s" ;;
             esac
-        elif [[ $key == "" ]]; then
-            break
-        elif [[ $key == " " ]]; then
-            local elem_idx=$((cursor * 3 + 2))
-            if [ "${OPCIONES[elem_idx]}" == "on" ]; then OPCIONES[elem_idx]="off"; else OPCIONES[elem_idx]="on"; fi
-        elif [[ $key == "q" || $key == "Q" ]]; then
-            echo -ne "\e[H\e[2J\e[?25h"
-            warn "Operación cancelada. Sin cambios en las opciones de shell."
-            return
         fi
+
+        case "$key" in
+            w|W)
+                ((cursor--))
+                [ $cursor -lt 0 ] && cursor=$((num_opciones - 1))
+                ;;
+            s|S)
+                ((cursor++))
+                [ $cursor -ge $num_opciones ] && cursor=0
+                ;;
+            " ")
+                local elem_idx=$((cursor * 3 + 2))
+                if [ "${OPCIONES[elem_idx]}" == "on" ]; then
+                    OPCIONES[elem_idx]="off"
+                else
+                    OPCIONES[elem_idx]="on"
+                fi
+                ;;
+            q|Q)
+                warn "Operación cancelada. Sin cambios en $TARGET_RC."
+                set -e
+                return
+                ;;
+            "")
+                break
+                ;;
+        esac
     done
 
-    # Guardado seguro garantizando la ruta exacta
+    # Re-activamos set -e antes de las escrituras en disco
+    set -e
+
     crear_backup "$TARGET_RC"
 
-    if grep -q "$MARKER_START" "$TARGET_RC"; then
+    if grep -q "$MARKER_START" "$TARGET_RC" 2>/dev/null; then
         info "Limpiando bloque de optimizaciones previo..."
         awk "/$MARKER_START/{p=1;next} /$MARKER_END/{p=0;next} !p" "$TARGET_RC" > "${TARGET_RC}.tmp"
         mv "${TARGET_RC}.tmp" "$TARGET_RC"
     fi
 
-    info "Escribiendo directivas directamente en $TARGET_RC..."
+    info "Escribiendo directivas en $TARGET_RC..."
     {
         echo "$MARKER_START"
         echo "# Configuración de $SHELL_NAME - Optimizada por ZSH4ME"
@@ -218,17 +239,16 @@ configurar_opciones_shell_interactivas() {
             desc="${OPCIONES[i+1]}"
             state="${OPCIONES[i+2]}"
             if [ "$state" == "on" ]; then
-                echo -e "\n# [ACTIVO] $desc"
+                echo "# [ACTIVO] $desc"
                 echo "setopt $opt 2>/dev/null || true"
             else
-                echo -e "\n# [INACTIVO] $desc"
+                echo "# [INACTIVO] $desc"
                 echo "unsetopt $opt 2>/dev/null || true"
             fi
         done
-        echo -e "\n$MARKER_END"
+        echo "$MARKER_END"
     } >> "$TARGET_RC"
 
-    echo -ne "\e[?25h"
     success "Opciones de $SHELL_NAME aplicadas correctamente en $TARGET_RC"
 }
 
