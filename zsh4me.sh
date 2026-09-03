@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # ==============================================================================
-# zsh4me - Creación de Entorno Interactivo con Zsh + Ghostty + Tmux 
+# zsh4me - Entorno Interactivo Multi-Distro (Arch, Ubuntu/Debian, Fedora)
 # ==============================================================================
 
 set -eo pipefail
@@ -22,7 +22,7 @@ ROJO_BRILLANTE='\e[91m'
 BLANCO='\e[97m'
 
 NC='\033[0m'
-
+ver="v.1.5"
 info() { echo -e "${AZUL_BRILLANTE}[INFO]${RESET} $1"; }
 success() { echo -e "${VERDE_BRILLANTE}[OK]${RESET} $1"; }
 warn() { echo -e "${AMARILLO}[WARN]${RESET} $1"; }
@@ -30,17 +30,45 @@ error() { echo -e "${ROJO_BRILLANTE}[ERROR]${RESET} $1"; exit 1; }
 
 REAL_USER=${SUDO_USER:-$USER}
 REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+
+# --- DETECCIÓN DE DISTRIBUCIÓN Y GESTOR DE PAQUETES ---
+PKG_MANAGER=""
+DISTRO_NAME=""
+
+detectar_distro() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        DISTRO_NAME=$NAME
+        case "$ID" in
+            arch|manjaro|endeavouros|garuda)
+                PKG_MANAGER="pacman"
+                ;;
+            ubuntu|debian|pop|mint|elementary)
+                PKG_MANAGER="apt"
+                ;;
+            fedora|rhel|nobara|centos)
+                PKG_MANAGER="dnf"
+                ;;
+            *)
+                if [[ "$ID_LIKE" == *"arch"* ]]; then PKG_MANAGER="pacman";
+                elif [[ "$ID_LIKE" == *"debian"* || "$ID_LIKE" == *"ubuntu"* ]]; then PKG_MANAGER="apt";
+                elif [[ "$ID_LIKE" == *"fedora"* || "$ID_LIKE" == *"rhel"* ]]; then PKG_MANAGER="dnf";
+                else error "Distribución no soportada automáticamente: $ID"; fi
+                ;;
+        esac
+    else
+        error "No se pudo determinar la distribución Linux."
+    fi
+}
+
+detectar_distro
 
 # --- VERIFICACIONES INICIALES ---
 if [ "$EUID" -eq 0 ] && [ -z "$SUDO_USER" ]; then
     error "No ejecutes este script directamente como root. Úsalo como usuario normal: ./zsh4me"
 fi
 
-if [ ! -f /etc/arch-release ]; then
-    error "Este script está diseñado para ejecutarse exclusivamente en Arch Linux."
-fi
-
-# Captura de señales para salida limpia
 trap salir SIGINT SIGTERM
 
 salir() {
@@ -60,26 +88,15 @@ mostrar_logo() {
     echo -e "${AZUL}   ███╔╝  ╚════██║██╔══██║╚════██║██║╚██╔╝██║██╔══╝  ${RESET}"
     echo -e "${AZUL_BRILLANTE}  ███████╗███████║██║  ██║     ██║██║ ╚═╝ ██║███████╗${RESET}"
     echo -e "${VERDE_BRILLANTE}  ╚══════╝╚══════╝╚═╝  ╚═╝     ╚═╝╚═╝     ╚═╝╚══════╝${RESET}"
-    echo -e "${VERDE_BRILLANTE}  ZSH4ME - CONFIGURADOR DE ENTORNO DE TERMINAL${RESET}"
+    echo -e "${VERDE_BRILLANTE}  ZSH4ME - CONFIGURADOR DE ENTORNO $ver${RESET}"
     echo -e "${CIAN}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    echo -e "${AMARILLO}➤ Usuario:${RESET} ${BLANCO}${REAL_USER}${RESET}"
-    echo -e "${AMARILLO}➤ Home:${RESET}    ${BLANCO}${REAL_HOME}${RESET}"
+    echo -e "${AMARILLO}➤ Sistema:${RESET}  ${BLANCO}${DISTRO_NAME} (${PKG_MANAGER})${RESET}"
+    echo -e "${AMARILLO}➤ Usuario:${RESET}  ${BLANCO}${REAL_USER}${RESET}"
+    echo -e "${AMARILLO}➤ Home:${RESET}     ${BLANCO}${REAL_HOME}${RESET}"
     echo -e "${CIAN}  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n"
 }
 
 # --- ESTILOS DE MENU FZF ---
-fzf_estilo() {
-    local prompt_text="$1"
-    local header_text="$2"
-    fzf --ansi \
-        --height=15 \
-        --reverse \
-        --border=rounded \
-        --prompt="➤ $prompt_text: " \
-        --header="$header_text" \
-        --color="border:#00ffff,pointer:#92ff92,header:#5fb2ff"
-}
-
 fzf_menu_principal() {
     local host_name=$(hostname 2>/dev/null || cat /etc/hostname)
     local date_now=$(date +"%d/%m/%Y")
@@ -93,32 +110,38 @@ fzf_menu_principal() {
         --header-lines=1 \
         --color="border:#5fafd7,header:#af87ff,prompt:#5fb2ff,pointer:#afff00" \
         --preview-window="up:25%:border-bottom" \
-        --preview="echo -e '\033[1;36mENTORNO ARCH LINUX\033[0m | \033[1;33mFecha:\033[0m $date_now | \033[1;33mHost:\033[0m $host_name | \033[1;33mUsuario:\033[0m $REAL_USER'"
+        --preview="echo -e '\033[1;36mENTORNO: $DISTRO_NAME\033[0m | \033[1;33mFecha:\033[0m $date_now | \033[1;33mHost:\033[0m $host_name | \033[1;33mUsuario:\033[0m $REAL_USER'"
 }
 
 # ==============================================================================
-# FUNCIONES DE INSTALACIÓN Y CONFIGURACIÓN (CÓDIGO ORIGINAL CONSERVADO)
+# FUNCIONES DE INSTALACIÓN ADAPTATIVAS
 # ==============================================================================
 
 instalar_paquetes() {
-    info "Configurando entorno de terminal para el usuario: $REAL_USER..."
-    info "Instalando paquetes requeridos con pacman..."
-    PACKAGES=(
-        zsh
-        git
-        curl
-        tmux
-        starship
-        fzf
-        zoxide
-        eza
-        bat
-        micro
-        ttf-jetbrains-mono-nerd
-    )
+    info "Instalando paquetes en $DISTRO_NAME usando $PKG_MANAGER..."
 
-    sudo pacman -S --needed --noconfirm "${PACKAGES[@]}"
-    success "Paquetes instalados correctamente."
+    case "$PKG_MANAGER" in
+        pacman)
+            sudo pacman -S --needed --noconfirm zsh git curl tmux starship fzf zoxide eza bat micro ttf-jetbrains-mono-nerd
+            ;;
+        apt)
+            sudo apt update
+            sudo apt install -y zsh git curl tmux fzf zoxide bat micro
+            # Mapeo de paquetes en Ubuntu/Debian que varían de nombre
+            if ! command -v eza &>/dev/null; then
+                warn "eza no está en los repos estándar de APT. Intentando instalar exa o eza..."
+                sudo apt install -y eza 2>/dev/null || sudo apt install -y exa 2>/dev/null || true
+            fi
+            if ! command -v starship &>/dev/null; then
+                info "Instalando Starship vía script oficial..."
+                curl -sS https://starship.rs/install.sh | sh -s -- -y
+            fi
+            ;;
+        dnf)
+            sudo dnf install -y zsh git curl tmux starship fzf zoxide eza bat micro
+            ;;
+    esac
+    success "Paquetes de sistema instalados correctamente."
 }
 
 configurar_oh_my_zsh() {
@@ -136,6 +159,8 @@ configurar_oh_my_zsh() {
     [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ] && git clone https://github.com/zsh-users/zsh-autosuggestions "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
     [ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ] && git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
     [ ! -d "$ZSH_CUSTOM/plugins/zsh-completions" ] && git clone https://github.com/zsh-users/zsh-completions "$ZSH_CUSTOM/plugins/zsh-completions"
+    
+    chown -R "$REAL_USER:$REAL_USER" "$ZSH_CUSTOM"
     success "Plugins de Zsh listos."
 }
 
@@ -146,7 +171,11 @@ configurar_ghostty() {
     info "Configurando Ghostty..."
     mkdir -p "$GHOSTTY_CONF_DIR"
 
-    [ -f "$GHOSTTY_CONF_FILE" ] && cp "$GHOSTTY_CONF_FILE" "${GHOSTTY_CONF_FILE}.bak"
+    # Respaldo si ya existe para proteger entornos activos
+    if [ -f "$GHOSTTY_CONF_FILE" ]; then
+        warn "Respaldo creado: ${GHOSTTY_CONF_FILE}.bak_${TIMESTAMP}"
+        cp "$GHOSTTY_CONF_FILE" "${GHOSTTY_CONF_FILE}.bak_${TIMESTAMP}"
+    fi
 
     cat << EOF > "$GHOSTTY_CONF_FILE"
 # Tipografía y renderizado
@@ -175,7 +204,10 @@ configurar_tmux() {
     TMUX_CONF_FILE="$REAL_HOME/.tmux.conf"
     info "Configurando Tmux..."
 
-    [ -f "$TMUX_CONF_FILE" ] && cp "$TMUX_CONF_FILE" "${TMUX_CONF_FILE}.bak"
+    if [ -f "$TMUX_CONF_FILE" ]; then
+        warn "Respaldo creado: ${TMUX_CONF_FILE}.bak_${TIMESTAMP}"
+        cp "$TMUX_CONF_FILE" "${TMUX_CONF_FILE}.bak_${TIMESTAMP}"
+    fi
 
     cat << 'EOF' > "$TMUX_CONF_FILE"
 set -g default-terminal "tmux-256color"
@@ -210,24 +242,40 @@ generar_zshrc() {
 
     mkdir -p "$REAL_HOME/.local/bin" "$REAL_HOME/bin"
 
-    if [ ! -f "$ZSHRC_FILE" ]; then
+    if [ -f "$ZSHRC_FILE" ]; then
+        warn "Se ha detectado un .zshrc existente. Creando respaldo en ${ZSHRC_FILE}.bak_${TIMESTAMP}"
+        cp "$ZSHRC_FILE" "${ZSHRC_FILE}.bak_${TIMESTAMP}"
+    fi
+
 cat << 'EOF' > "$ZSHRC_FILE"
 # ==============================================================================
 # 1. ALIASES Y ATAJOS DE TECLADO (Al inicio del archivo)
 # ==============================================================================
 
+# Compatibilidad de comandos entre distros (batcat vs bat / eza vs exa)
+if command -v batcat &>/dev/null; then alias bat="batcat"; fi
+if command -v exa &>/dev/null && ! command -v eza &>/dev/null; then alias eza="exa"; fi
+
 # --- Aliases para reemplazos modernos de comandos base ---
-alias ls="eza --icons --group-directories-first"          # Lista archivos mostrando iconos y carpetas primero
-alias ll="eza -la --icons --group-directories-first"       # Detalle completo de archivos y ocultos con iconos
-alias tree="eza --tree --icons"                            # Muestra la estructura de directorios en árbol visual
-alias cat="bat --paging=never"                             # Visualiza archivos con resaltado de sintaxis
+if command -v eza &>/dev/null; then
+    alias ls="eza --icons --group-directories-first"          # Lista archivos mostrando iconos y carpetas primero
+    alias ll="eza -la --icons --group-directories-first"       # Detalle completo de archivos y ocultos con iconos
+    alias tree="eza --tree --icons"                            # Muestra la estructura de directorios en árbol visual
+fi
+
+if command -v bat &>/dev/null || command -v batcat &>/dev/null; then
+    alias cat="bat --paging=never"                             # Visualiza archivos con resaltado de sintaxis
+fi
+
 alias grep="grep --color=auto"                             # Resalta resultados en las búsquedas con grep
 
-# --- Aliases de administración de sistema (Arch Linux / Pacman) ---
-alias pacin="sudo pacman -S"                               # Instalar paquetes
-alias pacup="sudo pacman -Syu"                             # Actualizar el sistema completo
-alias pacrm="sudo pacman -Rns"                             # Eliminar paquete y sus dependencias no usadas
-alias pacq="pacman -Qe"                                    # Listar paquetes explícitamente instalados
+# --- Aliases de administración de sistema ---
+alias pacin="sudo pacman -S"                               # Arch
+alias pacup="sudo pacman -Syu"
+alias aptin="sudo apt install"                             # Ubuntu/Debian
+alias aptup="sudo apt update && sudo apt upgrade"
+alias dnfin="sudo dnf install"                             # Fedora
+alias dnfup="sudo dnf upgrade"
 
 # --- Aliases para gestión de productividad y Tmux ---
 alias t="[ -z \"\$TMUX\" ] && (tmux attach -t main 2>/dev/null || tmux new -s main) || echo 'Ya estás dentro de Tmux'" # Conexión segura a Tmux
@@ -282,25 +330,20 @@ setopt SHARE_HISTORY
 # 4. INTEGRACIÓN DE HERRAMIENTAS CLI (Zoxide, FZF, Starship)
 # ==============================================================================
 
-eval "$(zoxide init zsh)"
+command -v zoxide &>/dev/null && eval "$(zoxide init zsh)"
 
 [ -f /usr/share/fzf/key-bindings.zsh ] && source /usr/share/fzf/key-bindings.zsh
 [ -f /usr/share/fzf/completion.zsh ] && source /usr/share/fzf/completion.zsh
+[ -f /usr/share/doc/fzf/examples/key-bindings.zsh ] && source /usr/share/doc/fzf/examples/key-bindings.zsh
+[ -f /usr/share/doc/fzf/examples/completion.zsh ] && source /usr/share/doc/fzf/examples/completion.zsh
 
-eval "$(starship init zsh)"
-EOF
-    fi
-
-    if ! grep -q 'export PATH="$HOME/.local/bin:' "$ZSHRC_FILE"; then
-        info "Añadiendo ~/.local/bin al PATH y configurando micro como editor en .zshrc..."
-        cat << 'EOF' >> "$ZSHRC_FILE"
+command -v starship &>/dev/null && eval "$(starship init zsh)"
 
 # --- Variables de entorno locales ---
 export PATH="$HOME/.local/bin:$HOME/bin:$PATH"
 export EDITOR="micro"
 export VISUAL="micro"
 EOF
-    fi
 
     chown -R "$REAL_USER:$REAL_USER" "$ZSHRC_FILE" "$REAL_HOME/.local/bin"
     success ".zshrc configurado correctamente."
@@ -308,14 +351,15 @@ EOF
 
 cambiar_shell() {
     info "Estableciendo Zsh como shell predeterminada..."
-    sudo chsh -s /usr/bin/zsh "$REAL_USER"
-    success "Shell predeterminada cambiada a /usr/bin/zsh."
+    ZSH_PATH=$(which zsh || echo "/usr/bin/zsh")
+    sudo chsh -s "$ZSH_PATH" "$REAL_USER"
+    success "Shell predeterminada cambiada a $ZSH_PATH."
 }
 
 ejecutar_instalacion_completa() {
     clear
     mostrar_logo
-    echo -e "${MAGENTA}=== INICIANDO INSTALACIÓN INTEGRAL ===${RESET}\n"
+    echo -e "${MAGENTA}=== INICIANDO INSTALACIÓN INTEGRAL EN $DISTRO_NAME ===${RESET}\n"
     
     instalar_paquetes
     configurar_oh_my_zsh
@@ -329,8 +373,8 @@ ejecutar_instalacion_completa() {
     echo -e "${VERDE_BRILLANTE}   ¡PROCESO FINALIZADO SIN ERRORES!                  ${RESET}"
     echo -e "${VERDE_BRILLANTE}=====================================================${RESET}"
     echo -e "Pasos obligatorios para aplicar los cambios:"
-    echo -e "1. Cierra Ghostty por completo (Ctrl+Shift+Q)."
-    echo -e "2. Vuelve a abrir Ghostty. Entrarás directo a Zsh sin avisos de error."
+    echo -e "1. Cierra tu terminal por completo."
+    echo -e "2. Vuelve a abrir tu terminal (Ghostty/Zsh)."
     echo -e "3. Para iniciar Tmux escribe solo: ${AZUL_BRILLANTE}t${RESET}"
     echo -e "====================================================="
     read -p "Presione Enter para volver al menú..."
@@ -341,10 +385,13 @@ ejecutar_instalacion_completa() {
 # ==============================================================================
 
 menu() {
-    # Comprobar dependencia fzf
     if ! command -v fzf &>/dev/null; then
-        warn "FZF no está instalado en el sistema. Instalando dependencias iniciales..."
-        sudo pacman -S --needed --noconfirm fzf
+        warn "FZF no está instalado. Instalando fzf..."
+        case "$PKG_MANAGER" in
+            pacman) sudo pacman -S --needed --noconfirm fzf ;;
+            apt) sudo apt update && sudo apt install -y fzf ;;
+            dnf) sudo dnf install -y fzf ;;
+        esac
     fi
 
     while true; do
@@ -353,12 +400,12 @@ menu() {
 
         opciones="ICONO | OPCIÓN        | DESCRIPCIÓN
 0. ⚡ | INSTALACIÓN   | Ejecutar instalación y configuración completa.
-1. 📦 | PAQUETES      | Instalar únicamente los paquetes de Arch necesarios.
+1. 📦 | PAQUETES      | Instalar únicamente paquetes requeridos ($PKG_MANAGER).
 2. 🐚 | OH MY ZSH     | Instalar Oh My Zsh y sus plugins.
 3. 👻 | GHOSTTY       | Configurar la terminal Ghostty.
 4. 🖥️ | TMUX          | Configurar el multiplexor Tmux.
 5. 📝 | ZSHRC         | Generar archivo .zshrc con aliases y herramientas.
-6. 🔄 | CAMBIAR SHELL | Establecer /usr/bin/zsh como shell por defecto.
+6. 🔄 | CAMBIAR SHELL | Establecer Zsh como shell por defecto.
 7. ❌ | SALIR         | Salir del script"
 
         seleccion=$(echo -e "$opciones" | fzf_menu_principal)
