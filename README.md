@@ -8,8 +8,7 @@
 [![GitHub release](https://img.shields.io/badge/release-v2.5-brightgreen.svg?style=for-the-badge&logo=git&logoColor=white)](https://github.com/DanSanMar/zsh4me)
 [![Linux Multi-Distro](https://img.shields.io/badge/Linux-Arch%20%7C%20Debian%20%7C%20Ubuntu%20%7C%20Fedora-blue?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/DanSanMar/zsh4me)
 [![Shell Script](https://img.shields.io/badge/Shell-Bash%20%2F%20Zsh-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)](https://github.com/DanSanMar/zsh4me)
-[![License](https://img.shields.io/badge/License-GNU General Public License v3.0-yellow.svg?style=for-the-badge)](LICENSE)
-
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](https://www.gnu.org/licenses/gpl-3.0)
 ---
 
 ## ✨ Highlights
@@ -50,7 +49,10 @@ cd zsh4me
 chmod +x zsh4me.sh
 ./zsh4me.sh
 
+```
 > ⚠️ **Nota:** No ejecutes el script con `sudo ./zsh4me.sh`. El script solicitará permisos de superusuario cuando sea necesario para instalar paquetes.
+
+---
 
 ## 🛠️ Opciones del Menú
 
