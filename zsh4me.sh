@@ -22,7 +22,7 @@ ROJO_BRILLANTE='\e[91m'
 BLANCO='\e[97m'
 
 NC='\033[0m'
-ver="v.2.2"
+ver="v.2.4"
 
 info() { echo -e "${AZUL_BRILLANTE}[INFO]${RESET} $1"; }
 success() { echo -e "${VERDE_BRILLANTE}[OK]${RESET} $1"; }
@@ -256,15 +256,21 @@ configurar_opciones_shell_interactivas() {
 instalar_paquetes() {
     info "Instalando paquetes en $DISTRO_NAME usando $PKG_MANAGER..."
     case "$PKG_MANAGER" in
-        pacman) sudo pacman -S --needed --noconfirm zsh git curl tmux starship fzf zoxide eza bat micro xclip wl-clipboard ttf-jetbrains-mono-nerd ;;
+        pacman) sudo pacman -S --needed --noconfirm zsh git curl tmux starship fzf zoxide eza bat micro xclip xsel wl-clipboard ttf-jetbrains-mono-nerd ;;
         apt)
-            sudo apt update && sudo apt install -y zsh git curl tmux fzf zoxide bat micro xclip wl-clipboard
+            sudo apt update && sudo apt install -y zsh git curl tmux fzf zoxide bat micro xclip xsel wl-clipboard
             if ! command -v eza &>/dev/null; then sudo apt install -y eza 2>/dev/null || sudo apt install -y exa 2>/dev/null || true; fi
             if ! command -v starship &>/dev/null; then curl -sS https://starship.rs/install.sh | sh -s -- -y; fi
             ;;
-        dnf) sudo dnf install -y zsh git curl tmux starship fzf zoxide eza bat micro xclip wl-clipboard ;;
+        dnf) sudo dnf install -y zsh git curl tmux starship fzf zoxide eza bat micro xclip xsel wl-clipboard ;;
     esac
-    success "Paquetes de sistema instalados correctamente."
+    
+    # Configuración global para Micro Editor (Usar portapapeles del SO)
+    mkdir -p "$REAL_HOME/.config/micro"
+    echo '{"clipboard": "external"}' > "$REAL_HOME/.config/micro/settings.json"
+    chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.config/micro"
+
+    success "Paquetes de sistema y adaptadores de portapapeles instalados."
 }
 
 configurar_oh_my_zsh() {
@@ -312,14 +318,15 @@ shell-integration = zsh
 cursor-style = block
 cursor-style-blink = false
 
-# COPIAR Y PEGAR AUTOMÁTICO AL SELECCIONAR
-copy-on-select = clipboard
+# COPIAR/PEGAR AUTOMÁTICO AL PORTAPAPELES GLOBAL (VSCodium/Browser compatible)
+copy-on-select = true
 clipboard-write = allow
 clipboard-read = allow
 clipboard-trim-trailing-spaces = true
+clipboard-paste-protection = false
 EOF
     chown -R "$REAL_USER:$REAL_USER" "$GHOSTTY_CONF_DIR"
-    success "Ghostty configurado con copy-on-select = clipboard."
+    success "Ghostty configurado con integración universal de portapapeles."
 }
 
 configurar_tmux() {
@@ -334,9 +341,9 @@ set -ag terminal-overrides ",xterm-256color:RGB"
 set -g mouse on
 setw -g mode-keys vi
 
-# Copiar al portapapeles del sistema (Soporte DUAL X11 / Wayland)
-bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || xclip -selection clipboard -i"
-bind-key -T copy-mode-vi Enter send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || xclip -selection clipboard -i"
+# Sincronización universal de selección con ratón a Portapapeles Global (Wayland/X11)
+bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || xclip -selection clipboard -in 2>/dev/null || xsel --clipboard --input"
+bind-key -T copy-mode-vi Enter send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || xclip -selection clipboard -in 2>/dev/null || xsel --clipboard --input"
 
 set -g base-index 1
 set -g pane-base-index 1
@@ -357,7 +364,19 @@ set -g status-left-length 40
 set -g status-right "#[fg=colour8]%Y-%m-%d %H:%M"
 EOF
     chown "$REAL_USER:$REAL_USER" "$TMUX_CONF_FILE"
-    success "Tmux configurado con soporte para portapapeles Wayland/X11."
+    success "Tmux configurado con puente multigestor (wl-copy / xclip / xsel)."
+}
+
+configurar_portapapeles_universal() {
+    clear
+    mostrar_logo
+    info "Aplicando sincronización de portapapeles universal en $DISTRO_NAME..."
+    
+    instalar_paquetes
+    configurar_ghostty
+    configurar_tmux
+
+    success "¡Portapapeles universal habilitado! Ahora la selección con el ratón se enviará al portapapeles global del sistema (VSCodium, navegadores, Micro, etc.)."
 }
 
 generar_zshrc() {
@@ -475,6 +494,88 @@ ejecutar_instalacion_completa() {
 }
 
 # ==============================================================================
+# SUBMÓDULO: GESTOR INTERACTIVO DE BACKUPS (MICRO + FZF)
+# ==============================================================================
+
+gestionar_backups() {
+    local BASE_BACKUP_DIR="$REAL_HOME/.zsh4me_backups"
+
+    if [ ! -d "$BASE_BACKUP_DIR" ] || [ -z "$(ls -A "$BASE_BACKUP_DIR" 2>/dev/null)" ]; then
+        warn "No se encontraron respaldos en $BASE_BACKUP_DIR"
+        read -p "Presione Enter para continuar..."
+        return
+    fi
+
+    local BAT_CMD="cat"
+    if command -v bat &>/dev/null; then
+        BAT_CMD="bat --theme=ansi --style=plain --color=always"
+    elif command -v batcat &>/dev/null; then
+        BAT_CMD="batcat --theme=ansi --style=plain --color=always"
+    fi
+
+    while true; do
+        # 1. Seleccionar la carpeta del Respaldo (Backup por Fecha/Timestamp)
+        local backup_folder
+        backup_folder=$(find "$BASE_BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -r | sed "s|^$BASE_BACKUP_DIR/||" | fzf \
+            --ansi \
+            --height=50% \
+            --layout=reverse \
+            --border=rounded \
+            --header="--- 📦 GESTOR DE BACKUPS ZSH4ME (Esc: Volver) ---" \
+            --prompt="Seleccione Fecha/Sesión > " \
+            --preview="ls -la '$BASE_BACKUP_DIR/{}'")
+
+        [ -z "$backup_folder" ] && break
+
+        local target_folder="$BASE_BACKUP_DIR/$backup_folder"
+
+        # 2. Seleccionar el archivo dentro de esa carpeta de backup
+        local selected_file
+        selected_file=$(find "$target_folder" -type f 2>/dev/null | sed "s|^$target_folder/||" | fzf \
+            --ansi \
+            --height=60% \
+            --layout=reverse \
+            --border=rounded \
+            --header="--- Archivos en: $backup_folder ---" \
+            --prompt="Seleccione Archivo > " \
+            --preview="$BAT_CMD '$target_folder/{}' 2>/dev/null || head -n 30 '$target_folder/{}'")
+
+        [ -z "$selected_file" ] && continue
+
+        local full_file_path="$target_folder/$selected_file"
+
+        # 3. Menú de Acción para el archivo seleccionado
+        local accion
+        accion=$(printf "📝 Editar / Ver con Micro\n🔄 Restaurar Backup a su ubicación original\n❌ Cancelar" | fzf \
+            --height=35% \
+            --layout=reverse \
+            --border=rounded \
+            --header="--- Acción para: $selected_file ---" \
+            --prompt="Elija acción > ")
+
+        case "$accion" in
+            "📝 Editar / Ver con Micro")
+                micro "$full_file_path"
+                ;;
+            "🔄 Restaurar Backup a su ubicación original")
+                local original_dest="$REAL_HOME/$selected_file"
+                read -rp "¿Confirmas sobrescribir '$original_dest' con este backup? (s/N): " confirm
+                if [[ "$confirm" =~ ^[Ss]$ ]]; then
+                    crear_backup "$original_dest" # Backup preventivo antes de sobrescribir
+                    cp -rf "$full_file_path" "$original_dest"
+                    chown -R "$REAL_USER:$REAL_USER" "$original_dest" 2>/dev/null || true
+                    success "Backup restaurado exitosamente en: $original_dest"
+                    sleep 2
+                fi
+                ;;
+            *)
+                continue
+                ;;
+        esac
+    done
+}
+
+# ==============================================================================
 # BUCLE DE MENÚ PRINCIPAL
 # ==============================================================================
 
@@ -497,11 +598,13 @@ menu() {
 1. 📦 | PAQUETES      | Instalar paquetes de la distribución ($PKG_MANAGER).
 2. 🐚 | OH MY ZSH     | Instalar Oh My Zsh y plugins.
 3. ⚙️ | OPCIONES SHELL| Configurar setopt interactivamente.
-4. 👻 | GHOSTTY       | Configurar Ghostty (Copy/Paste en selección incl.).
-5. 🖥️ | TMUX          | Configurar Tmux (Integración xclip e historial).
-6. 📝 | ZSHRC         | Inyectar archivo .zshrc sin borrar contenido.
-7. 🔄 | CAMBIAR SHELL | Establecer Zsh como shell predeterminada.
-8. ❌ | SALIR         | Salir del script"
+4. 👻 | GHOSTTY       | Configurar Ghostty (Copy/Paste universal incl.).
+5. 🖥️ | TMUX          | Configurar Tmux (Integración xclip/wl-clipboard).
+6. 📋 | PORTAPAPELES  | Configurar únicamente el Copy/Paste Universal.
+7. 📝 | ZSHRC         | Inyectar archivo .zshrc sin borrar contenido.
+8. 🔄 | CAMBIAR SHELL | Establecer Zsh como shell predeterminada.
+9. 🗂️ | BACKUPS       | Ver, editar con Micro y restaurar copias de respaldo.
+10. ❌ | SALIR        | Salir del script"
 
         seleccion=$(echo -e "$opciones" | fzf_menu_principal)
 
@@ -514,9 +617,11 @@ menu() {
             3) configurar_opciones_shell_interactivas; read -p "Presione Enter...";;
             4) clear; mostrar_logo; configurar_ghostty; read -p "Presione Enter...";;
             5) clear; mostrar_logo; configurar_tmux; read -p "Presione Enter...";;
-            6) clear; mostrar_logo; generar_zshrc; read -p "Presione Enter...";;
-            7) clear; mostrar_logo; cambiar_shell; read -p "Presione Enter...";;
-            8) salir ;;
+            6) configurar_portapapeles_universal; read -p "Presione Enter...";;
+            7) clear; mostrar_logo; generar_zshrc; read -p "Presione Enter...";;
+            8) clear; mostrar_logo; cambiar_shell; read -p "Presione Enter...";;
+            9) gestionar_backups ;;
+            10) salir ;;
         esac
     done
 }
