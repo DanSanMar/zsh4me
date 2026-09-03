@@ -22,7 +22,7 @@ ROJO_BRILLANTE='\e[91m'
 BLANCO='\e[97m'
 
 NC='\033[0m'
-ver="v.1.5"
+ver="v.1.6"
 info() { echo -e "${AZUL_BRILLANTE}[INFO]${RESET} $1"; }
 success() { echo -e "${VERDE_BRILLANTE}[OK]${RESET} $1"; }
 warn() { echo -e "${AMARILLO}[WARN]${RESET} $1"; }
@@ -31,6 +31,23 @@ error() { echo -e "${ROJO_BRILLANTE}[ERROR]${RESET} $1"; exit 1; }
 REAL_USER=${SUDO_USER:-$USER}
 REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+BACKUP_DIR="$REAL_HOME/.zsh4me_backups/backup_$TIMESTAMP"
+
+# --- HELPER CENTRALIZADO DE RESPALDOS ---
+crear_backup() {
+    local archivo_origen="$1"
+
+    if [ -e "$archivo_origen" ]; then
+        mkdir -p "$BACKUP_DIR"
+        local nombre_base=$(basename "$archivo_origen")
+        local destino="$BACKUP_DIR/$nombre_base"
+
+        cp -r "$archivo_origen" "$destino"
+        chown -R "$REAL_USER:$REAL_USER" "$BACKUP_DIR"
+
+        warn "Respaldo creado para $nombre_base -> $destino"
+    fi
+}
 
 # --- DETECCIÓN DE DISTRIBUCIÓN Y GESTOR DE PAQUETES ---
 PKG_MANAGER=""
@@ -127,7 +144,6 @@ instalar_paquetes() {
         apt)
             sudo apt update
             sudo apt install -y zsh git curl tmux fzf zoxide bat micro
-            # Mapeo de paquetes en Ubuntu/Debian que varían de nombre
             if ! command -v eza &>/dev/null; then
                 warn "eza no está en los repos estándar de APT. Intentando instalar exa o eza..."
                 sudo apt install -y eza 2>/dev/null || sudo apt install -y exa 2>/dev/null || true
@@ -171,11 +187,8 @@ configurar_ghostty() {
     info "Configurando Ghostty..."
     mkdir -p "$GHOSTTY_CONF_DIR"
 
-    # Respaldo si ya existe para proteger entornos activos
-    if [ -f "$GHOSTTY_CONF_FILE" ]; then
-        warn "Respaldo creado: ${GHOSTTY_CONF_FILE}.bak_${TIMESTAMP}"
-        cp "$GHOSTTY_CONF_FILE" "${GHOSTTY_CONF_FILE}.bak_${TIMESTAMP}"
-    fi
+    # Respaldo en ubicación centralizada
+    crear_backup "$GHOSTTY_CONF_FILE"
 
     cat << EOF > "$GHOSTTY_CONF_FILE"
 # Tipografía y renderizado
@@ -204,10 +217,8 @@ configurar_tmux() {
     TMUX_CONF_FILE="$REAL_HOME/.tmux.conf"
     info "Configurando Tmux..."
 
-    if [ -f "$TMUX_CONF_FILE" ]; then
-        warn "Respaldo creado: ${TMUX_CONF_FILE}.bak_${TIMESTAMP}"
-        cp "$TMUX_CONF_FILE" "${TMUX_CONF_FILE}.bak_${TIMESTAMP}"
-    fi
+    # Respaldo en ubicación centralizada
+    crear_backup "$TMUX_CONF_FILE"
 
     cat << 'EOF' > "$TMUX_CONF_FILE"
 set -g default-terminal "tmux-256color"
@@ -242,59 +253,21 @@ generar_zshrc() {
 
     mkdir -p "$REAL_HOME/.local/bin" "$REAL_HOME/bin"
 
+    # 1. Respaldo centralizado si existe un .zshrc previo
     if [ -f "$ZSHRC_FILE" ]; then
-        warn "Se ha detectado un .zshrc existente. Creando respaldo en ${ZSHRC_FILE}.bak_${TIMESTAMP}"
-        cp "$ZSHRC_FILE" "${ZSHRC_FILE}.bak_${TIMESTAMP}"
+        crear_backup "$ZSHRC_FILE"
+    else
+        touch "$ZSHRC_FILE"
+        chown "$REAL_USER:$REAL_USER" "$ZSHRC_FILE"
     fi
 
-cat << 'EOF' > "$ZSHRC_FILE"
-# ==============================================================================
-# 1. ALIASES Y ATAJOS DE TECLADO (Al inicio del archivo)
-# ==============================================================================
+    # 2. Inyección de bloque base ZSH4ME (preserva contenido del usuario)
+    if ! grep -q "# === ZSH4ME CONFIG START ===" "$ZSHRC_FILE"; then
+        info "Inyectando configuración base de ZSH4ME en .zshrc..."
+        cat << 'EOF' >> "$ZSHRC_FILE"
 
-# Compatibilidad de comandos entre distros (batcat vs bat / eza vs exa)
-if command -v batcat &>/dev/null; then alias bat="batcat"; fi
-if command -v exa &>/dev/null && ! command -v eza &>/dev/null; then alias eza="exa"; fi
-
-# --- Aliases para reemplazos modernos de comandos base ---
-if command -v eza &>/dev/null; then
-    alias ls="eza --icons --group-directories-first"          # Lista archivos mostrando iconos y carpetas primero
-    alias ll="eza -la --icons --group-directories-first"       # Detalle completo de archivos y ocultos con iconos
-    alias tree="eza --tree --icons"                            # Muestra la estructura de directorios en árbol visual
-fi
-
-if command -v bat &>/dev/null || command -v batcat &>/dev/null; then
-    alias cat="bat --paging=never"                             # Visualiza archivos con resaltado de sintaxis
-fi
-
-alias grep="grep --color=auto"                             # Resalta resultados en las búsquedas con grep
-
-# --- Aliases de administración de sistema ---
-alias pacin="sudo pacman -S"                               # Arch
-alias pacup="sudo pacman -Syu"
-alias aptin="sudo apt install"                             # Ubuntu/Debian
-alias aptup="sudo apt update && sudo apt upgrade"
-alias dnfin="sudo dnf install"                             # Fedora
-alias dnfup="sudo dnf upgrade"
-
-# --- Aliases para gestión de productividad y Tmux ---
-alias t="[ -z \"\$TMUX\" ] && (tmux attach -t main 2>/dev/null || tmux new -s main) || echo 'Ya estás dentro de Tmux'" # Conexión segura a Tmux
-alias ta="tmux attach -t"                                  # Acoplarse a una sesión existente indicando nombre (Ej: ta dev)
-alias tn="tmux new -s"                                     # Crear una nueva sesión nombrada (Ej: tn dev)
-alias tl="tmux ls"                                         # Listar todas las sesiones de Tmux activas
-alias tk="tmux kill-session -t"                            # Cerrar/destruir una sesión específica (Ej: tk main)
-
-# --- Aliases de navegación y utilidad general ---
-alias ..="cd .."                                           # Subir un nivel de directorio
-alias ...="cd ../.."                                       # Subir dos niveles de directorio
-alias reload="source ~/.zshrc"                             # Recargar la configuración de Zsh al instante
-
-# ==============================================================================
-# 2. CONFIGURACIÓN PRINCIPAL DE OH MY ZSH Y PLUGINS
-# ==============================================================================
-
+# === ZSH4ME CONFIG START ===
 export ZSH="$HOME/.oh-my-zsh"
-
 ZSH_THEME=""
 
 fpath=($ZSH/custom/plugins/zsh-completions/src $fpath)
@@ -307,7 +280,7 @@ plugins=(
     zsh-completions
 )
 
-source $ZSH/oh-my-zsh.sh
+[ -f $ZSH/oh-my-zsh.sh ] && source $ZSH/oh-my-zsh.sh
 
 autoload -Uz compinit && compinit
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'
@@ -316,9 +289,7 @@ zstyle ':completion:*' menu select
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#6c7086,bold"
 ZSH_AUTOSUGGEST_STRATEGY=(history completion)
 
-# ==============================================================================
-# 3. HISTORIAL DE ZSH
-# ==============================================================================
+# HISTORIAL DE ZSH
 HISTFILE=~/.zsh_history
 HISTSIZE=50000
 SAVEHIST=50000
@@ -326,10 +297,7 @@ setopt HIST_IGNORE_DUPS
 setopt HIST_IGNORE_ALL_DUPS
 setopt SHARE_HISTORY
 
-# ==============================================================================
-# 4. INTEGRACIÓN DE HERRAMIENTAS CLI (Zoxide, FZF, Starship)
-# ==============================================================================
-
+# INTEGRACIÓN DE HERRAMIENTAS CLI (Zoxide, FZF, Starship)
 command -v zoxide &>/dev/null && eval "$(zoxide init zsh)"
 
 [ -f /usr/share/fzf/key-bindings.zsh ] && source /usr/share/fzf/key-bindings.zsh
@@ -338,15 +306,66 @@ command -v zoxide &>/dev/null && eval "$(zoxide init zsh)"
 [ -f /usr/share/doc/fzf/examples/completion.zsh ] && source /usr/share/doc/fzf/examples/completion.zsh
 
 command -v starship &>/dev/null && eval "$(starship init zsh)"
+# === ZSH4ME CONFIG END ===
+EOF
+    fi
 
-# --- Variables de entorno locales ---
+    # 3. Inyección de Aliases seguros
+    if ! grep -q "# === ZSH4ME ALIASES START ===" "$ZSHRC_FILE"; then
+        info "Inyectando aliases de ZSH4ME..."
+        cat << 'EOF' >> "$ZSHRC_FILE"
+
+# === ZSH4ME ALIASES START ===
+if command -v batcat &>/dev/null; then alias bat="batcat"; fi
+if command -v exa &>/dev/null && ! command -v eza &>/dev/null; then alias eza="exa"; fi
+
+if command -v eza &>/dev/null; then
+    alias ls="eza --icons --group-directories-first" 2>/dev/null || true
+    alias ll="eza -la --icons --group-directories-first" 2>/dev/null || true
+    alias tree="eza --tree --icons" 2>/dev/null || true
+fi
+
+if command -v bat &>/dev/null || command -v batcat &>/dev/null; then
+    alias cat="bat --paging=never" 2>/dev/null || true
+fi
+
+alias grep="grep --color=auto" 2>/dev/null || true
+
+# Aliases de administración de sistema
+alias pacin="sudo pacman -S"
+alias pacup="sudo pacman -Syu"
+alias aptin="sudo apt install"
+alias aptup="sudo apt update && sudo apt upgrade"
+alias dnfin="sudo dnf install"
+alias dnfup="sudo dnf upgrade"
+
+# Aliases Tmux
+alias t="[ -z \"\$TMUX\" ] && (tmux attach -t main 2>/dev/null || tmux new -s main) || echo 'Ya estás dentro de Tmux'"
+alias ta="tmux attach -t"
+alias tn="tmux new -s"
+alias tl="tmux ls"
+alias tk="tmux kill-session -t"
+
+alias ..="cd .."
+alias ...="cd ../.."
+alias reload="source ~/.zshrc"
+# === ZSH4ME ALIASES END ===
+EOF
+    fi
+
+    # 4. Asegurar variables de PATH locales sin sobrescribir rutas existentes
+    if ! grep -q 'export PATH="$HOME/.local/bin:' "$ZSHRC_FILE"; then
+        cat << 'EOF' >> "$ZSHRC_FILE"
+
+# === ZSH4ME PATHS ===
 export PATH="$HOME/.local/bin:$HOME/bin:$PATH"
 export EDITOR="micro"
 export VISUAL="micro"
 EOF
+    fi
 
     chown -R "$REAL_USER:$REAL_USER" "$ZSHRC_FILE" "$REAL_HOME/.local/bin"
-    success ".zshrc configurado correctamente."
+    success ".zshrc configurado respetando el contenido previo."
 }
 
 cambiar_shell() {
@@ -372,6 +391,7 @@ ejecutar_instalacion_completa() {
     echo -e "${VERDE_BRILLANTE}=====================================================${RESET}"
     echo -e "${VERDE_BRILLANTE}   ¡PROCESO FINALIZADO SIN ERRORES!                  ${RESET}"
     echo -e "${VERDE_BRILLANTE}=====================================================${RESET}"
+    [ -d "$BACKUP_DIR" ] && echo -e "${AMARILLO} Archivos respaldados en:${RESET} ${BLANCO}$BACKUP_DIR${RESET}"
     echo -e "Pasos obligatorios para aplicar los cambios:"
     echo -e "1. Cierra tu terminal por completo."
     echo -e "2. Vuelve a abrir tu terminal (Ghostty/Zsh)."
@@ -404,7 +424,7 @@ menu() {
 2. 🐚 | OH MY ZSH     | Instalar Oh My Zsh y sus plugins.
 3. 👻 | GHOSTTY       | Configurar la terminal Ghostty.
 4. 🖥️ | TMUX          | Configurar el multiplexor Tmux.
-5. 📝 | ZSHRC         | Generar archivo .zshrc con aliases y herramientas.
+5. 📝 | ZSHRC         | Generar/inyectar archivo .zshrc sin borrar configuraciones.
 6. 🔄 | CAMBIAR SHELL | Establecer Zsh como shell por defecto.
 7. ❌ | SALIR         | Salir del script"
 
