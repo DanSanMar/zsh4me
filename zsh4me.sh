@@ -402,19 +402,19 @@ configurar_tmux() {
 set -g default-terminal "tmux-256color"
 set -ag terminal-overrides ",xterm-256color:RGB"
 
-# Habilitar soporte de ratón y selección
+# Habilitar ratón y modo Vi
 set -g mouse on
 setw -g mode-keys vi
 
-# Sincronización universal de selección con ratón a Portapapeles Global (Wayland/X11)
-bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || xclip -selection clipboard -in 2>/dev/null || xsel --clipboard --input"
-bind-key -T copy-mode-vi Enter send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || xclip -selection clipboard -in 2>/dev/null || xsel --clipboard --input"
-# Copia automática al seleccionar con ratón tanto a PRIMARY como a CLIPBOARD
-bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || (xclip -in -selection primary 2>/dev/null && xclip -in -selection clipboard 2>/dev/null) || xsel --clipboard --input"
+# Numeración de ventanas desde 1 y reordenado automático
 set -g base-index 1
 set -g pane-base-index 1
 set-window-option -g pane-base-index 1
 set-option -g renumber-windows on
+
+# Copiar limpiamente al portapapeles global al soltar el ratón o pulsar Enter
+bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || xclip -selection clipboard -in 2>/dev/null"
+bind-key -T copy-mode-vi Enter send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || xclip -selection clipboard -in 2>/dev/null"
 
 unbind C-b
 set -g prefix C-a
@@ -441,53 +441,10 @@ configurar_portapapeles_universal() {
     instalar_paquetes
     configurar_ghostty
     configurar_tmux
-    configurar_sincronizador_portapapeles
-
+    
     success "¡Portapapeles universal habilitado!"
 }
 
-
-
-configurar_sincronizador_portapapeles() {
-    info "Configurando sincronizador universal de selección con ratón (PRIMARY -> CLIPBOARD)..."
-    
-    local BIN_DIR="$REAL_HOME/.local/bin"
-    local AUTOSTART_DIR="$REAL_HOME/.config/autostart"
-    mkdir -p "$BIN_DIR" "$AUTOSTART_DIR"
-
-    # 1. Crear script nativo de sincronización
-    cat << 'EOF' > "$BIN_DIR/clip-sync.sh"
-#!/usr/bin/env bash
-# Sincroniza la selección de ratón (PRIMARY) al portapapeles global (CLIPBOARD)
-
-if [ -n "$WAYLAND_DISPLAY" ]; then
-    # Entorno Wayland
-    wl-paste --primary --watch wl-copy &
-else
-    # Entorno X11
-    xclip -o -selection primary | xclip -i -selection clipboard 2>/dev/null &
-fi
-EOF
-
-    chmod +x "$BIN_DIR/clip-sync.sh"
-
-    # 2. Crear lanzador de inicio automático en el sistema
-    cat << EOF > "$AUTOSTART_DIR/clip-sync.desktop"
-[Desktop Entry]
-Type=Application
-Name=Universal Clipboard Sync
-Exec=$BIN_DIR/clip-sync.sh
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-EOF
-
-    chown -R "$REAL_USER:$REAL_USER" "$BIN_DIR/clip-sync.sh" "$AUTOSTART_DIR/clip-sync.desktop"
-
-    # Iniciar en la sesión actual de forma silenciosa
-    nohup "$BIN_DIR/clip-sync.sh" >/dev/null 2>&1 &
-    success "Sincronizador universal de ratón activado correctamente."
-}
 
 generar_zshrc() {
     ZSHRC_FILE="$REAL_HOME/.zshrc"
