@@ -22,7 +22,7 @@ ROJO_BRILLANTE='\e[91m'
 BLANCO='\e[97m'
 
 NC='\033[0m'
-ver="v.2.6"
+ver="v.2.7"
 
 info() { echo -e "${AZUL_BRILLANTE}[INFO]${RESET} $1"; }
 success() { echo -e "${VERDE_BRILLANTE}[OK]${RESET} $1"; }
@@ -321,13 +321,13 @@ configurar_opciones_shell_interactivas() {
 instalar_paquetes() {
     info "Instalando paquetes en $DISTRO_NAME usando $PKG_MANAGER..."
     case "$PKG_MANAGER" in
-        pacman) sudo pacman -S --needed --noconfirm zsh git curl tmux starship fzf zoxide eza bat micro xclip xsel wl-clipboard ttf-jetbrains-mono-nerd ;;
+        pacman) sudo pacman -S --needed --noconfirm zsh git curl tmux starship fzf zoxide eza bat micro xclip xsel wl-clipboard autocutsel ttf-jetbrains-mono-nerd ;;
         apt)
-            sudo apt update && sudo apt install -y zsh git curl tmux fzf zoxide bat micro xclip xsel wl-clipboard
+            sudo apt update && sudo apt install -y zsh git curl tmux fzf zoxide bat micro xclip xsel wl-clipboard autocutsel
             if ! command -v eza &>/dev/null; then sudo apt install -y eza 2>/dev/null || sudo apt install -y exa 2>/dev/null || true; fi
             if ! command -v starship &>/dev/null; then curl -sS https://starship.rs/install.sh | sh -s -- -y; fi
             ;;
-        dnf) sudo dnf install -y zsh git curl tmux starship fzf zoxide eza bat micro xclip xsel wl-clipboard ;;
+        dnf) sudo dnf install -y zsh git curl tmux starship fzf zoxide eza bat micro xclip xsel wl-clipboard autocutsel ;;
     esac
     
     # Configuración global para Micro Editor (Usar portapapeles del SO)
@@ -409,7 +409,8 @@ setw -g mode-keys vi
 # Sincronización universal de selección con ratón a Portapapeles Global (Wayland/X11)
 bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || xclip -selection clipboard -in 2>/dev/null || xsel --clipboard --input"
 bind-key -T copy-mode-vi Enter send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || xclip -selection clipboard -in 2>/dev/null || xsel --clipboard --input"
-
+# Copia automática al seleccionar con ratón tanto a PRIMARY como a CLIPBOARD
+bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || (xclip -in -selection primary 2>/dev/null && xclip -in -selection clipboard 2>/dev/null) || xsel --clipboard --input"
 set -g base-index 1
 set -g pane-base-index 1
 set-window-option -g pane-base-index 1
@@ -440,8 +441,37 @@ configurar_portapapeles_universal() {
     instalar_paquetes
     configurar_ghostty
     configurar_tmux
+    configurar_sincronizador_autocutsel
 
-    success "¡Portapapeles universal habilitado! Ahora la selección con el ratón se enviará al portapapeles global del sistema (VSCodium, navegadores, Micro, etc.)."
+    success "¡Portapapeles universal habilitado!"
+}
+
+
+
+configurar_sincronizador_autocutsel() {
+    info "Configurando demonio de sincronización entre la Selección Primaria (ratón) y CLIPBOARD..."
+    
+    # Crear script de autoarranque para sincronizar selecciones con ratón
+    local AUTOSTART_DIR="$REAL_HOME/.config/autostart"
+    mkdir -p "$AUTOSTART_DIR"
+
+    cat << EOF > "$AUTOSTART_DIR/autocutsel.desktop"
+[Desktop Entry]
+Type=Application
+Name=AutoCutSel
+Exec=sh -c "autocutsel -selection PRIMARY -fork & autocutsel -selection CLIPBOARD -fork"
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+EOF
+
+    chown -R "$REAL_USER:$REAL_USER" "$AUTOSTART_DIR"
+
+    # Ejecutar en segundo plano en la sesión actual si está disponible
+    if command -v autocutsel &>/dev/null && [ -n "$DISPLAY" ]; then
+        autocutsel -selection PRIMARY -fork 2>/dev/null || true
+        autocutsel -selection CLIPBOARD -fork 2>/dev/null || true
+    fi
 }
 
 generar_zshrc() {
