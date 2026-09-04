@@ -412,10 +412,6 @@ set -g pane-base-index 1
 set-window-option -g pane-base-index 1
 set-option -g renumber-windows on
 
-# Copiar limpiamente al portapapeles global al soltar el ratón o pulsar Enter
-bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || xclip -selection clipboard -in 2>/dev/null"
-bind-key -T copy-mode-vi Enter send-keys -X copy-pipe-and-cancel "wl-copy 2>/dev/null || xclip -selection clipboard -in 2>/dev/null"
-
 unbind C-b
 set -g prefix C-a
 bind C-a send-prefix
