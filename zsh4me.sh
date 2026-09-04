@@ -22,7 +22,7 @@ ROJO_BRILLANTE='\e[91m'
 BLANCO='\e[97m'
 
 NC='\033[0m'
-ver="v.2.5"
+ver="v.2.6"
 
 info() { echo -e "${AZUL_BRILLANTE}[INFO]${RESET} $1"; }
 success() { echo -e "${VERDE_BRILLANTE}[OK]${RESET} $1"; }
@@ -58,6 +58,8 @@ fzf_menu_principal() {
             echo -e "\033[1;36m=== 🔄 SHELL PREDETERMINADA ===\033[0m\n\nCambia tu Shell predeterminada de usuario a Zsh de forma segura mediante '\''chsh'\''."
         elif [[ "$line" =~ "BACKUPS" ]]; then
             echo -e "\033[1;36m=== 🗂️ GESTOR DE RESPALDOS ===\033[0m\n\nAdministra tus puntos de restauración previos:\n ➔ Explora copias organizadas por fecha y hora\n ➔ Revisa diferencias y edita archivos con Micro\n ➔ Restaura configuraciones a su estado original"
+        elif [[ "$line" =~ "HELP ATAJOS" ]]; then
+            echo -e "\033[1;36m=== 💡 AYUDA Y ATAJOS DE TECLADO ===\033[0m\n\nMuestra un menú interactivo con todos los atajos instalados:\n ➔ Comandos y prefijos de Tmux\n ➔ Atajos de búsqueda con FZF\n ➔ Alias modernos de Zsh (ls, cat, t, etc.)\n ➔ Teclas rápidas del sistema y de la Shell"    
         elif [[ "$line" =~ "SALIR" ]]; then
             echo -e "\033[1;31m=== ❌ SALIR ===\033[0m\n\nCierra el panel de administración ZSH4ME de forma segura."
         else
@@ -91,6 +93,42 @@ crear_backup() {
 
         warn "Respaldo creado para $nombre_base -> $destino"
     fi
+}
+
+# ==============================================================================
+# SUBMÓDULO: MENÚ INTERACTIVO DE AYUDA Y ATAJOS CON FZF
+# ==============================================================================
+
+mostrar_ayuda_atajos() {
+    local atajos="CATEGORÍA  | ATAJO / COMANDO           | DESCRIPCIÓN
+Tmux       | Ctrl + a                  | Tecla Prefix (remplaza Ctrl+b)
+Tmux       | Prefix + |                | Dividir panel verticalmente
+Tmux       | Prefix + -                | Dividir panel horizontalmente
+Tmux       | Prefix + r                | Recargar archivo de configuración ~/.tmux.conf
+Tmux       | Arrastrar Ratón           | Copia automáticamente al portapapeles global
+Zsh/Alias  | t                         | Conecta a la sesión 'main' de Tmux o la crea
+Zsh/Alias  | ta <nombre>               | Adjuntarse a una sesión de Tmux específica
+Zsh/Alias  | tn <nombre>               | Crear nueva sesión de Tmux
+Zsh/Alias  | tl                        | Listar todas las sesiones activas de Tmux
+Zsh/Alias  | tk <nombre>               | Eliminar/Cerrar una sesión de Tmux
+Zsh/Alias  | ls / ll / tree            | Muestra directorios con eza (con iconos y colores)
+Zsh/Alias  | cat <archivo>             | Visualiza archivos con bat (resaltado de sintaxis)
+Zsh/Alias  | reload                    | Recarga el archivo ~/.zshrc en la terminal actual
+Zsh/Alias  | .. / ...                  | Sube 1 o 2 niveles de directorio
+FZF        | Ctrl + r                  | Búsqueda interactiva en el historial de comandos
+FZF        | Ctrl + t                  | Búsqueda interactiva de archivos en el directorio
+Zoxide     | z <directorio>            | Salto rápido a carpetas frecuentadas
+Editor     | micro <archivo>           | Editor de texto por defecto (usa portapapeles externo)"
+
+    echo "$atajos" | fzf \
+        --ansi \
+        --height=70% \
+        --layout=reverse \
+        --border=rounded \
+        --prompt=" 🔍 Buscar Atajo/Comando > " \
+        --header="--- ATAJOS Y FUNCIONES INSTALADAS POR ZSH4ME ---" \
+        --header-lines=1 \
+        --color="border:#5fafd7,header:#af87ff,prompt:#5fb2ff,pointer:#afff00"
 }
 
 # --- DETECCIÓN DE DISTRIBUCIÓN Y GESTOR DE PAQUETES ---
@@ -631,7 +669,8 @@ menu() {
 7. 📝 | ZSHRC         | Actualizar .zshrc con alias y herramientas modernas.
 8. 🔄 | CAMBIAR SHELL | Establecer Zsh como la shell predeterminada.
 9. 🗂️ | BACKUPS       | Explorar, editar o restaurar copias de seguridad.
-10. ❌ | SALIR        | Salir del administrador zsh4me"
+10. 💡| HELP ATAJOS   | Ver atajos de teclado, alias y funciones integradas.
+11. ❌| SALIR        | Salir del administrador zsh4me"
 
         seleccion=$(echo -e "$opciones" | fzf_menu_principal)
 
@@ -648,7 +687,8 @@ menu() {
             7) clear; mostrar_logo; generar_zshrc; read -p "Presione Enter...";;
             8) clear; mostrar_logo; cambiar_shell; read -p "Presione Enter...";;
             9) gestionar_backups ;;
-            10) salir ;;
+            10) mostrar_ayuda_atajos ;;
+            11) salir ;;
         esac
     done
 }
