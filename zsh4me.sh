@@ -22,7 +22,7 @@ ROJO_BRILLANTE='\e[91m'
 BLANCO='\e[97m'
 
 NC='\033[0m'
-ver="v.2.7"
+ver="v.2.8 empezamos test"
 
 info() { echo -e "${AZUL_BRILLANTE}[INFO]${RESET} $1"; }
 success() { echo -e "${VERDE_BRILLANTE}[OK]${RESET} $1"; }
@@ -321,13 +321,13 @@ configurar_opciones_shell_interactivas() {
 instalar_paquetes() {
     info "Instalando paquetes en $DISTRO_NAME usando $PKG_MANAGER..."
     case "$PKG_MANAGER" in
-        pacman) sudo pacman -S --needed --noconfirm zsh git curl tmux starship fzf zoxide eza bat micro xclip xsel wl-clipboard autocutsel ttf-jetbrains-mono-nerd ;;
+        pacman) sudo pacman -S --needed --noconfirm zsh git curl tmux starship fzf zoxide eza bat micro xclip xsel wl-clipboard ttf-jetbrains-mono-nerd ;;
         apt)
-            sudo apt update && sudo apt install -y zsh git curl tmux fzf zoxide bat micro xclip xsel wl-clipboard autocutsel
+            sudo apt update && sudo apt install -y zsh git curl tmux fzf zoxide bat micro xclip xsel wl-clipboard
             if ! command -v eza &>/dev/null; then sudo apt install -y eza 2>/dev/null || sudo apt install -y exa 2>/dev/null || true; fi
             if ! command -v starship &>/dev/null; then curl -sS https://starship.rs/install.sh | sh -s -- -y; fi
             ;;
-        dnf) sudo dnf install -y zsh git curl tmux starship fzf zoxide eza bat micro xclip xsel wl-clipboard autocutsel ;;
+        dnf) sudo dnf install -y zsh git curl tmux starship fzf zoxide eza bat micro xclip xsel wl-clipboard ;;
     esac
     
     # Configuración global para Micro Editor (Usar portapapeles del SO)
@@ -367,7 +367,7 @@ configurar_ghostty() {
     cat << EOF > "$GHOSTTY_CONF_FILE"
 # Tipografía y Renderizado
 font-family = JetBrainsMono Nerd Font
-font-size = 11
+font-size = 14
 adjust-cell-height = 10%
 
 # Apariencia y Tema
@@ -441,37 +441,52 @@ configurar_portapapeles_universal() {
     instalar_paquetes
     configurar_ghostty
     configurar_tmux
-    configurar_sincronizador_autocutsel
+    configurar_sincronizador_portapapeles
 
     success "¡Portapapeles universal habilitado!"
 }
 
 
 
-configurar_sincronizador_autocutsel() {
-    info "Configurando demonio de sincronización entre la Selección Primaria (ratón) y CLIPBOARD..."
+configurar_sincronizador_portapapeles() {
+    info "Configurando sincronizador universal de selección con ratón (PRIMARY -> CLIPBOARD)..."
     
-    # Crear script de autoarranque para sincronizar selecciones con ratón
+    local BIN_DIR="$REAL_HOME/.local/bin"
     local AUTOSTART_DIR="$REAL_HOME/.config/autostart"
-    mkdir -p "$AUTOSTART_DIR"
+    mkdir -p "$BIN_DIR" "$AUTOSTART_DIR"
 
-    cat << EOF > "$AUTOSTART_DIR/autocutsel.desktop"
+    # 1. Crear script nativo de sincronización
+    cat << 'EOF' > "$BIN_DIR/clip-sync.sh"
+#!/usr/bin/env bash
+# Sincroniza la selección de ratón (PRIMARY) al portapapeles global (CLIPBOARD)
+
+if [ -n "$WAYLAND_DISPLAY" ]; then
+    # Entorno Wayland
+    wl-paste --primary --watch wl-copy &
+else
+    # Entorno X11
+    xclip -o -selection primary | xclip -i -selection clipboard 2>/dev/null &
+fi
+EOF
+
+    chmod +x "$BIN_DIR/clip-sync.sh"
+
+    # 2. Crear lanzador de inicio automático en el sistema
+    cat << EOF > "$AUTOSTART_DIR/clip-sync.desktop"
 [Desktop Entry]
 Type=Application
-Name=AutoCutSel
-Exec=sh -c "autocutsel -selection PRIMARY -fork & autocutsel -selection CLIPBOARD -fork"
+Name=Universal Clipboard Sync
+Exec=$BIN_DIR/clip-sync.sh
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
 EOF
 
-    chown -R "$REAL_USER:$REAL_USER" "$AUTOSTART_DIR"
+    chown -R "$REAL_USER:$REAL_USER" "$BIN_DIR/clip-sync.sh" "$AUTOSTART_DIR/clip-sync.desktop"
 
-    # Ejecutar en segundo plano en la sesión actual si está disponible
-    if command -v autocutsel &>/dev/null && [ -n "$DISPLAY" ]; then
-        autocutsel -selection PRIMARY -fork 2>/dev/null || true
-        autocutsel -selection CLIPBOARD -fork 2>/dev/null || true
-    fi
+    # Iniciar en la sesión actual de forma silenciosa
+    nohup "$BIN_DIR/clip-sync.sh" >/dev/null 2>&1 &
+    success "Sincronizador universal de ratón activado correctamente."
 }
 
 generar_zshrc() {
