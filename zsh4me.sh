@@ -327,7 +327,22 @@ instalar_paquetes() {
             if ! command -v eza &>/dev/null; then sudo apt install -y eza 2>/dev/null || sudo apt install -y exa 2>/dev/null || true; fi
             if ! command -v starship &>/dev/null; then curl -sS https://starship.rs/install.sh | sh -s -- -y; fi
             ;;
-        dnf) sudo dnf install -y zsh git curl tmux starship fzf zoxide eza bat micro xclip xsel wl-clipboard ;;
+        dnf)
+            # Instalación de herramientas por repositorio
+            sudo dnf install -y --setopt=strict=0 --setopt=install_weak_deps=False --no-best zsh git curl tmux starship fzf zoxide eza bat micro xclip xsel wl-clipboard
+
+            # Instalación automática de la fuente JetBrainsMono Nerd Font si no existe
+            if ! fc-list | grep -i "JetBrainsMono" &>/dev/null; then
+                info "Instalando JetBrainsMono Nerd Font..."
+                local font_dir="$REAL_HOME/.local/share/fonts"
+                mkdir -p "$font_dir"
+                curl -fLo "$font_dir/JetBrainsMono.zip" https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
+                unzip -o "$font_dir/JetBrainsMono.zip" -d "$font_dir"
+                rm -f "$font_dir/JetBrainsMono.zip"
+                fc-cache -f "$font_dir"
+                chown -R "$REAL_USER:$REAL_USER" "$font_dir"
+            fi
+            ;;
     esac
     
     # Configuración global para Micro Editor (Usar portapapeles del SO)
