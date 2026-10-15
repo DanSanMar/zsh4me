@@ -22,7 +22,7 @@ ROJO_BRILLANTE='\e[91m'
 BLANCO='\e[97m'
 
 NC='\033[0m'
-ver="v.2.9.3 test fedora"
+ver="v.2.9.5 starship"
 
 info() { echo -e "${AZUL_BRILLANTE}[INFO]${RESET} $1"; }
 success() { echo -e "${VERDE_BRILLANTE}[OK]${RESET} $1"; }
@@ -43,6 +43,8 @@ fzf_menu_principal() {
             echo -e "\033[1;36m=== 📦 GESTOR DE PAQUETES ===\033[0m\n\nInstala las herramientas base para tu terminal:\n ➔ zsh, git, curl, tmux, starship, fzf, zoxide\n ➔ eza, bat, micro\n ➔ Adaptadores de portapapeles (xclip, xsel, wl-clipboard)\n ➔ Fuente JetBrainsMono Nerd Font"
         elif [[ "$line" =~ "OH MY ZSH" ]]; then
             echo -e "\033[1;36m=== 🐚 OH MY ZSH & PLUGINS ===\033[0m\n\nDescarga e integra el framework Zsh:\n ➔ Autosugerencias (zsh-autosuggestions)\n ➔ Resaltado de sintaxis (zsh-syntax-highlighting)\n ➔ Autocompletados avanzados (zsh-completions)"
+        elif [[ "$line" =~ "STARSHIP" ]]; then
+            echo -e "\033[1;36m=== 🚀 PROMPT STARSHIP ===\033[0m\n\nConfigura el prompt ultrarrápido Starship:\n ➔ Añade '\''eval \"\$(starship init zsh)\"'\'' a tu .zshrc\n ➔ Requiere tener Starship y una NerdFont instaladas"
         elif [[ "$line" =~ "OPCIONES SHELL" ]]; then
             echo -e "\033[1;36m=== ⚙️ OPTIMIZACIÓN INTERACTIVA DE SHELL ===\033[0m\n\nConsola visual para activar o desactivar parámetros '\''setopt'\'':\n ➔ autocd, autocorrect de comandos\n ➔ Control de duplicados en historial\n ➔ Historial compartido entre terminales en tiempo real"
         elif [[ "$line" =~ "GHOSTTY" ]]; then
@@ -56,7 +58,7 @@ fzf_menu_principal() {
         elif [[ "$line" =~ "CAMBIAR SHELL" ]]; then
             echo -e "\033[1;36m=== 🔄 SHELL PREDETERMINADA ===\033[0m\n\nCambia tu Shell predeterminada de usuario a Zsh de forma segura mediante '\''chsh'\''."
         elif [[ "$line" =~ "BACKUPS" ]]; then
-            echo -e "\033[1;36m=== 🗂️ GESTOR DE RESPALDOS ===\033[0m\n\Administra tus puntos de restauración previos:\n ➔ Explora copias organizadas por fecha y hora\n ➔ Revisa diferencias y edita archivos con Micro\n ➔ Restaura configuraciones a su estado original"
+            echo -e "\033[1;36m=== 🗂️ GESTOR DE RESPALDOS ===\033[0m\n\nAdministra tus puntos de restauración previos:\n ➔ Explora copias organizadas por fecha y hora\n ➔ Revisa diferencias y edita archivos con Micro\n ➔ Restaura configuraciones a su estado original"
         elif [[ "$line" =~ "HELP ATAJOS" ]]; then
             echo -e "\033[1;36m=== 💡 AYUDA Y ATAJOS DE TECLADO ===\033[0m\n\nMuestra un menú interactivo con todos los atajos instalados:\n ➔ Comandos y prefijos de Tmux\n ➔ Atajos de búsqueda con FZF\n ➔ Alias modernos de Zsh (ls, cat, t, etc.)\n ➔ Teclas rápidas del sistema y de la Shell"    
         elif [[ "$line" =~ "SALIR" ]]; then
@@ -388,6 +390,21 @@ instalar_paquetes() {
     echo '{"clipboard": "external"}' > "$REAL_HOME/.config/micro/settings.json"
     chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.config/micro"
 
+    # --- VERIFICACIÓN E INSTALACIÓN ROBUSTA DE STARSHIP ---
+    if ! command -v starship &>/dev/null; then
+        info "Starship no detectado en el PATH. Instalando Starship mediante el script oficial..."
+        curl -sS https://starship.rs/install.sh | sh -s -- -y || warn "No se pudo instalar Starship automáticamente vía script oficial."
+    fi
+
+    # Forzar la inclusión del directorio local por si el PATH actual no lo tiene cargado en esta sesión
+    export PATH="$REAL_HOME/.local/bin:$PATH"
+
+    if command -v starship &>/dev/null; then
+        success "Starship está instalado correctamente ($(starship --version | head -n 1))."
+    else
+        error "La instalación de Starship ha fallado. Comprueba tu conexión a internet."
+    fi
+
     success "Paquetes de sistema y adaptadores de portapapeles instalados."
 }
 
@@ -495,8 +512,11 @@ generar_zshrc() {
         mv "${ZSHRC_FILE}.tmp" "$ZSHRC_FILE"
     fi
 
-    local active_plugins="${ZSH4ME_PLUGINS:-git sudo zsh-autosuggestions zsh-syntax-highlighting}"
-    local active_theme="${ZSH4ME_THEME:-agnoster}"
+    # Si no hay plugins en memoria, cargamos todos por defecto para que no falte ninguno
+    local active_plugins="${ZSH4ME_PLUGINS:-git sudo zsh-autosuggestions zsh-syntax-highlighting zsh-completions zoxide fzf colored-man-pages web-search command-not-found}"
+    
+    # IMPORTANTE: El tema debe estar vacío para que Starship controle el prompt sin interferencias
+    local active_theme="${ZSH4ME_THEME:-}"
 
     info "Inyectando configuración optimizada en $ZSHRC_FILE..."
     {
@@ -593,11 +613,32 @@ ejecutar_instalacion_completa() {
     cambiar_shell
 
     echo ""
-    echo -e "${VERDE_BRILLANTE}====================================================s=================${RESET}"
+    echo -e "${VERDE_BRILLANTE}=====================================================================${RESET}"
     echo -e "${VERDE_BRILLANTE}   ¡PROCESO FINALIZADO SIN ERRORES!                  ${RESET}"
     echo -e "${VERDE_BRILLANTE}=====================================================================${RESET}"
     [ -d "$BACKUP_DIR" ] && echo -e "${AMARILLO} Archivos respaldados en:${RESET} ${BLANCO}$BACKUP_DIR${RESET}"
     read -p "Presione Enter para volver al menú..."
+}
+
+# ==============================================================================
+# SUBMÓDULO: CONFIGURACIÓN DE STARSHIP PROMPT
+# ==============================================================================
+
+configurar_starship() {
+    local TARGET_RC="$REAL_HOME/.zshrc"
+    local MARKER_STARSHIP="eval \"\$(starship init zsh)\""
+
+    crear_backup "$TARGET_RC"
+
+    if grep -q "starship init zsh" "$TARGET_RC" 2>/dev/null; then
+        warn "Starship ya se encuentra inicializado en $TARGET_RC."
+    else
+        info "Añadiendo inicialización de Starship a $TARGET_RC..."
+        echo "" >> "$TARGET_RC"
+        echo "# === STARSHIP PROMPT ===" >> "$TARGET_RC"
+        echo "command -v starship &>/dev/null && $MARKER_STARSHIP" >> "$TARGET_RC"
+        success "Starship configurado correctamente en tu shell."
+    fi
 }
 
 # ==============================================================================
@@ -746,17 +787,17 @@ configurar_oh_my_zsh() {
     
     local preview_plugin_cmd='
         case "{}" in
-            git) echo -e "\033[1;36m=== 🔌 PLUGIN: git ===\033[0m\n\nAñade cientos de alias útiles y funciones de autocompletado nativo para Git.\nEjemplos: ga (git add), gc!! (git commit --amend), gst (git status)." ;;
-            sudo) echo -e "\033[1;36m=== 🔌 PLUGIN: sudo ===\033[0m\n\nPresiona dos veces la tecla ESCAPE (o Ctrl+s) para anteponer automáticamente \"sudo\" al comando que acabas de escribir." ;;
-            zsh-autosuggestions) echo -e "\033[1;36m=== 🔌 PLUGIN: zsh-autosuggestions ===\033[0m\n\nSugiere comandos de forma asíncrona basados en tu historial mientras escribes.\nAcepta la sugerencia pulsando la Flecha Derecha." ;;
-            zsh-syntax-highlighting) echo -e "\033[1;36m=== 🔌 PLUGIN: zsh-syntax-highlighting ===\033[0m\n\nResaltado de sintaxis verde/rojo en tiempo real para la línea de comandos.\nTe avisa si un comando existe o tiene errores antes de pulsar Enter." ;;
-            zsh-completions) echo -e "\033[1;36m=== 🔌 PLUGIN: zsh-completions ===\033[0m\n\nAñade definiciones de autocompletado adicionales para cientos de herramientas de desarrollo comunes (Docker, Python, CLI externas, etc.)." ;;
-            zoxide) echo -e "\033[1;36m=== 🔌 PLUGIN: zoxide ===\033[0m\n\nReemplazo inteligente del comando \"cd\" que aprende de tus hábitos para permitir saltos rápidos usando alias con \"z\"." ;;
-            fzf) echo -e "\033[1;36m=== 🔌 PLUGIN: fzf ===\033[0m\n\nHabilita los atajos de teclado interactivos de búsqueda difusa global para archivos y comandos previos (Ctrl+R / Ctrl+T)." ;;
-            colored-man-pages) echo -e "\033[1;36m=== 🔌 PLUGIN: colored-man-pages ===\033[0m\n\nAñade colores ANSI estructurales y legibles a las páginas de ayuda convencionales de Linux (man)." ;;
-            web-search) echo -e "\033[1;36m=== 🔌 PLUGIN: web-search ===\033[0m\n\nTe permite abrir el navegador web directo desde la terminal.\nEjemplo: google zsh4me" ;;
-            command-not-found) echo -e "\033[1;36m=== 🔌 PLUGIN: command-not-found ===\033[0m\n\nSi escribes un comando que no tienes instalado, interactúa con el gestor del sistema para decirte exactamente qué paquete debes bajar." ;;
-            *) echo -e "Plugin personalizado. Sin previsualización disponible." ;;
+            git) echo -e "\033[1;36m=== 🔌 PLUGIN: git ===\033[0m\n\nAñade cientos de alias útiles y funciones de autocompletado nativo para Git." ;;
+            sudo) echo -e "\033[1;36m=== 🔌 PLUGIN: sudo ===\033[0m\n\nPresiona dos veces ESC para anteponer sudo al comando." ;;
+            zsh-autosuggestions) echo -e "\033[1;36m=== 🔌 PLUGIN: zsh-autosuggestions ===\033[0m\n\nSugiere comandos basados en tu historial." ;;
+            zsh-syntax-highlighting) echo -e "\033[1;36m=== 🔌 PLUGIN: zsh-syntax-highlighting ===\033[0m\n\nResaltado de sintaxis en tiempo real." ;;
+            zsh-completions) echo -e "\033[1;36m=== 🔌 PLUGIN: zsh-completions ===\033[0m\n\nAutocompletados avanzados para herramientas CLI." ;;
+            zoxide) echo -e "\033[1;36m=== 🔌 PLUGIN: zoxide ===\033[0m\n\nIntegración del plugin zoxide para Oh My Zsh." ;;
+            fzf) echo -e "\033[1;36m=== 🔌 PLUGIN: fzf ===\033[0m\n\nIntegración oficial de fzf para Oh My Zsh." ;;
+            colored-man-pages) echo -e "\033[1;36m=== 🔌 PLUGIN: colored-man-pages ===\033[0m\n\nColores en manuales de ayuda (man)." ;;
+            web-search) echo -e "\033[1;36m=== 🔌 PLUGIN: web-search ===\033[0m\n\nBusca en la web directo desde la terminal." ;;
+            command-not-found) echo -e "\033[1;36m=== 🔌 PLUGIN: command-not-found ===\033[0m\n\nSugiere paquetes a instalar si un comando no existe." ;;
+            *) echo -e "Plugin estándar o personalizado." ;;
         esac
     '
 
@@ -778,7 +819,7 @@ command-not-found"
         --layout=reverse \
         --border=rounded \
         --prompt=" 🧩 Seleccionar Plugins (TAB para elegir) ❯ " \
-        --header="--- INSTALACIÓN CON PREVISUALIZACIÓN DE DESCRIPCIÓN ---" \
+        --header="--- INSTALACIÓN Y VERIFICACIÓN AUTOMÁTICA ---" \
         --preview-window="right:55%:border-rounded:wrap" \
         --preview="$preview_plugin_cmd")
 
@@ -788,19 +829,29 @@ command-not-found"
 
     PLUGINS_ARRAY=$(echo "$plugins_seleccionados" | tr '\n' ' ')
 
-    info "Instalando y clonando repositorios necesarios..."
-    
-    [[ "$plugins_seleccionados" =~ "zsh-autosuggestions" ]] && \
-        [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ] && \
-        git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions.git "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
+    info "Clonando y verificando repositorios de plugins necesarios..."
 
-    [[ "$plugins_seleccionados" =~ "zsh-syntax-highlighting" ]] && \
-        [ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ] && \
-        git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting.git "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
+    # Función auxiliar para clonar de forma segura con verificación
+    instalar_plugin_git() {
+        local nombre_plugin="$1"
+        local repo_url="$2"
+        local destino="$ZSH_CUSTOM/plugins/$nombre_plugin"
+        
+        if [[ "$plugins_seleccionados" =~ "$nombre_plugin" ]]; then
+            if [ ! -d "$destino" ]; then
+                info "Clonando $nombre_plugin..."
+                git clone --depth=1 "$repo_url" "$destino" || warn "No se pudo clonar $nombre_plugin"
+            else
+                success "Plugin $nombre_plugin ya estaba instalado."
+            fi
+        fi
+    }
 
-    [[ "$plugins_seleccionados" =~ "zsh-completions" ]] && \
-        [ ! -d "$ZSH_CUSTOM/plugins/zsh-completions" ] && \
-        git clone --depth=1 https://github.com/zsh-users/zsh-completions.git "$ZSH_CUSTOM/plugins/zsh-completions"
+    instalar_plugin_git "zsh-autosuggestions" "https://github.com/zsh-users/zsh-autosuggestions.git"
+    instalar_plugin_git "zsh-syntax-highlighting" "https://github.com/zsh-users/zsh-syntax-highlighting.git"
+    instalar_plugin_git "zsh-completions" "https://github.com/zsh-users/zsh-completions.git"
+    instalar_plugin_git "zoxide" "https://github.com/ajeetdsouza/zoxide.git"
+    instalar_plugin_git "fzf" "https://github.com/unixorn/fzf-zsh-plugin.git"
 
     export ZSH4ME_PLUGINS="$PLUGINS_ARRAY"
 
@@ -811,14 +862,14 @@ command-not-found"
         --height=40% \
         --layout=reverse \
         --border=rounded \
-        --prompt=" 🎨 Seleccionar Tema ❯ " \
+        --prompt=" 🎨 Seleccionar Tema (Nota: Dejar vacío si usas Starship) ❯ " \
         --header="--- GESTOR DE TEMAS OH MY ZSH ---")
 
-    [ -z "$tema_seleccionado" ] && tema_seleccionado="af-magic"
-    export ZSH4ME_THEME="$tema_seleccionado"
+    # Si se selecciona o se deja vacío intencionadamente
+    export ZSH4ME_THEME="${tema_seleccionado:-}"
 
     [ -d "$ZSH_DIR" ] && chown -R "$REAL_USER:$REAL_USER" "$ZSH_DIR"
-    success "Plugins configurados con éxito en memoria: $ZSH4ME_PLUGINS"
+    success "Plugins configurados y verificados con éxito: $ZSH4ME_PLUGINS"
 }
 
 # ==============================================================================
@@ -851,7 +902,8 @@ menu() {
 8. 🔄 | CAMBIAR SHELL | Establecer Zsh como la shell predeterminada.
 9. 🗂️ | BACKUPS       | Explorar, editar o restaurar copias de seguridad.
 10. 💡| HELP ATAJOS   | Ver atajos de teclado, alias y funciones integradas.
-11. ❌| SALIR         | Salir del administrador zsh4me"
+11. 🚀| STARSHIP      | Activar / Configurar Starship prompt en Zsh.
+12. ❌| SALIR         | Salir del administrador zsh4me"
 
         local seleccion
         seleccion=$(echo -e "$opciones" | fzf_menu_principal)
@@ -870,7 +922,8 @@ menu() {
             8) clear; mostrar_logo; cambiar_shell; read -p "Presione Enter...";;
             9) gestionar_backups ;;
             10) mostrar_ayuda_atajos ;;
-            11) salir ;;
+            11) clear; mostrar_logo; configurar_starship; read -p "Presione Enter...";;
+            12) salir ;;
         esac
     done
 }
