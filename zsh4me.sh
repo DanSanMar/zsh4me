@@ -22,7 +22,7 @@ ROJO_BRILLANTE='\e[91m'
 BLANCO='\e[97m'
 
 NC='\033[0m'
-ver="v.2.8 empezamos test"
+ver="v.2.9 empezamos test"
 
 info() { echo -e "${AZUL_BRILLANTE}[INFO]${RESET} $1"; }
 success() { echo -e "${VERDE_BRILLANTE}[OK]${RESET} $1"; }
@@ -325,23 +325,73 @@ instalar_paquetes() {
         apt)
             sudo apt update && sudo apt install -y zsh git curl tmux fzf zoxide bat micro xclip xsel wl-clipboard
             if ! command -v eza &>/dev/null; then sudo apt install -y eza 2>/dev/null || sudo apt install -y exa 2>/dev/null || true; fi
-            if ! command -v starship &>/dev/null; then curl -sS https://starship.rs/install.sh | sh -s -- -y; fi
+            if ! command -v starship &>/dev/null; then curl -sS https://starship.rs | sh -s -- -y; fi
             ;;
         dnf)
-            # Instalación de herramientas por repositorio
+            # Preguntar si se desea instalar la terminal Ghostty vía COPR (Recomendado)
+            if ! command -v ghostty &>/dev/null; then
+                echo -e "\n${CIAN}🤖 GHOSTTY NOT DETECTED${RESET}"
+                read -rp "$(echo -e "${AMARILLO}¿Deseas instalar Ghostty usando el repositorio COPR recomendado? (S/n): ${RESET}")" install_ghostty
+                install_ghostty=${install_ghostty:-S}
+                
+                if [[ "$install_ghostty" =~ ^[Ss]$ ]]; then
+                    info "Habilitando repositorio COPR scottames/ghostty..."
+                    sudo dnf copr enable -y scottames/ghostty
+                    info "Instalando Ghostty..."
+                    sudo dnf install -y ghostty
+                else
+                    warn "Instalación de Ghostty omitida por el usuario."
+                fi
+            else
+                success "Ghostty ya se encuentra instalado en el sistema."
+            fi
+
+            # Instalación de herramientas estándar por repositorio
             sudo dnf install -y --setopt=strict=0 --setopt=install_weak_deps=False --no-best zsh git curl tmux starship fzf zoxide eza bat micro xclip xsel wl-clipboard
 
+           # Instalación automática de la fuente JetBrainsMono Nerd Font si no existe
             # Instalación automática de la fuente JetBrainsMono Nerd Font si no existe
             if ! fc-list | grep -i "JetBrainsMono" &>/dev/null; then
-                info "Instalando JetBrainsMono Nerd Font..."
-                local font_dir="$REAL_HOME/.local/share/fonts"
+                info "Instalando JetBrainsMono Nerd Font mediante paquete comprimido compacto..."
+                local font_dir="$REAL_HOME/.local/share/fonts/JetBrainsMono"
                 mkdir -p "$font_dir"
-                curl -fLo "$font_dir/JetBrainsMono.zip" https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
-                unzip -o "$font_dir/JetBrainsMono.zip" -d "$font_dir"
+                
+                # Limpieza total de residuos anteriores
+                rm -f "$font_dir/JetBrainsMono.tar.xz"
                 rm -f "$font_dir/JetBrainsMono.zip"
-                fc-cache -f "$font_dir"
-                chown -R "$REAL_USER:$REAL_USER" "$font_dir"
+
+                # Descargamos el formato tar.xz (pesa menos y GitHub no suele capar su redirección)
+                # Forzamos un User-Agent común para evitar bloqueos automatizados de GitHub
+                curl -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64)" \
+                     -fLo "$font_dir/JetBrainsMono.tar.xz" -L \
+                     "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz"
+                
+                # Si fallase curl por lo que sea, intentamos con wget como fallback directo
+                if [ ! -f "$font_dir/JetBrainsMono.tar.xz" ] || [ $(stat -c%s "$font_dir/JetBrainsMono.tar.xz") -lt 1000000 ]; then
+                    warn "Curl bloqueado por la CDN. Reintentando descarga segura con wget..."
+                    rm -f "$font_dir/JetBrainsMono.tar.xz"
+                    wget -U "Mozilla/5.0" -O "$font_dir/JetBrainsMono.tar.xz" \
+                         "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz" || true
+                fi
+
+                # Verificación final de integridad física del archivo tar.xz
+                if [ -f "$font_dir/JetBrainsMono.tar.xz" ] && [ $(stat -c%s "$font_dir/JetBrainsMono.tar.xz") -gt 1000000 ]; then
+                    info "Descomprimiendo tipografías..."
+                    tar -xJf "$font_dir/JetBrainsMono.tar.xz" -C "$font_dir"
+                    rm -f "$font_dir/JetBrainsMono.tar.xz"
+                    
+                    info "Actualizando el caché de fuentes del sistema..."
+                    fc-cache -f "$font_dir"
+                    chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.local/share/fonts"
+                    success "JetBrainsMono Nerd Font instalada y validada correctamente."
+                else
+                    error "No se pudo descargar la tipografía. La API de descargas de GitHub está rechazando la conexión temporalmente."
+                fi
+            else
+                success "JetBrainsMono Nerd Font ya está presente en el sistema."
             fi
+
+
             ;;
     esac
     
@@ -353,24 +403,6 @@ instalar_paquetes() {
     success "Paquetes de sistema y adaptadores de portapapeles instalados."
 }
 
-configurar_oh_my_zsh() {
-    ZSH_DIR="$REAL_HOME/.oh-my-zsh"
-    ZSH_CUSTOM="$ZSH_DIR/custom"
-
-    if [ ! -d "$ZSH_DIR" ]; then
-        info "Instalando Oh My Zsh..."
-        RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-        chown -R "$REAL_USER:$REAL_USER" "$ZSH_DIR"
-    fi
-
-    info "Instalando plugins de Zsh..."
-    [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ] && git clone https://github.com/zsh-users/zsh-autosuggestions "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
-    [ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ] && git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
-    [ ! -d "$ZSH_CUSTOM/plugins/zsh-completions" ] && git clone https://github.com/zsh-users/zsh-completions "$ZSH_CUSTOM/plugins/zsh-completions"
-    
-    chown -R "$REAL_USER:$REAL_USER" "$ZSH_CUSTOM"
-    success "Plugins de Zsh listos."
-}
 
 configurar_ghostty() {
     GHOSTTY_CONF_DIR="$REAL_HOME/.config/ghostty"
@@ -652,6 +684,43 @@ gestionar_backups() {
         esac
     done
 }
+
+configurar_oh_my_zsh() {
+    ZSH_DIR="$REAL_HOME/.oh-my-zsh"
+    ZSH_CUSTOM="$ZSH_DIR/custom"
+
+    if [ ! -d "$ZSH_DIR" ]; then
+        info "Instalando Oh My Zsh directamente vía Git Clone para evitar bloqueos de red..."
+        
+        # Clonamos el repositorio oficial directamente saltándonos los scripts de descarga
+        if ! git clone --depth=1 https://github.com "$ZSH_DIR"; then
+            error "No se pudo clonar el repositorio de Oh My Zsh. Revisa tu conexión a internet o el estado de GitHub."
+        fi
+        
+        # Creamos una plantilla básica de .zshrc si no existe para que OMZ funcione de inmediato
+        if [ ! -f "$REAL_HOME/.zshrc" ]; then
+            cp "$ZSH_DIR/templates/zshrc.zsh-template" "$REAL_HOME/.zshrc"
+        fi
+    fi
+
+    # Forzamos la creación estructurada del directorio de plugins
+    mkdir -p "$ZSH_CUSTOM/plugins"
+
+    info "Instalando plugins de Zsh..."
+    [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ] && git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
+    [ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ] && git clone --depth=1 https://github.com "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
+    [ ! -d "$ZSH_CUSTOM/plugins/zsh-completions" ] && git clone --depth=1 https://github.com "$ZSH_CUSTOM/plugins/zsh-completions"
+    
+    # Aseguramos los permisos correctos asignándolos a tu usuario real
+    if [ -d "$ZSH_DIR" ]; then
+        chown -R "$REAL_USER:$REAL_USER" "$ZSH_DIR"
+    fi
+    
+    success "Plugins de Zsh listos."
+}
+
+
+
 
 # ==============================================================================
 # BUCLE DE MENÚ PRINCIPAL
