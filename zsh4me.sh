@@ -22,7 +22,7 @@ ROJO_BRILLANTE='\e[91m'
 BLANCO='\e[97m'
 
 NC='\033[0m'
-ver="v.2.9.2 test completo"
+ver="v.2.9.3 test fedora"
 
 info() { echo -e "${AZUL_BRILLANTE}[INFO]${RESET} $1"; }
 success() { echo -e "${VERDE_BRILLANTE}[OK]${RESET} $1"; }
@@ -40,7 +40,7 @@ fzf_menu_principal() {
         if [[ "$line" =~ "INSTALACIÓN" ]]; then
             echo -e "\033[1;36m=== ⚡ INSTALACIÓN INTEGRAL ===\033[0m\n\nDespliega el entorno completo en un solo paso:\n ➔ Instala dependencias y fuentes NerdFont\n ➔ Configura Oh My Zsh y sus plugins principales\n ➔ Aplica las configuraciones de Ghostty y Tmux\n ➔ Modifica .zshrc sin perder tus ajustes previos\n ➔ Establece Zsh como tu Shell por defecto"
         elif [[ "$line" =~ "PAQUETES" ]]; then
-            echo -e "\033[1;36m=== 📦 GESTOR DE PAQUETES ('$PKG_MANAGER') ===\033[0m\n\nInstala las herramientas base para tu terminal:\n ➔ zsh, git, curl, tmux, starship, fzf, zoxide\n ➔ eza, bat, micro\n ➔ Adaptadores de portapapeles (xclip, xsel, wl-clipboard)\n ➔ Fuente JetBrainsMono Nerd Font"
+            echo -e "\033[1;36m=== 📦 GESTOR DE PAQUETES ===\033[0m\n\nInstala las herramientas base para tu terminal:\n ➔ zsh, git, curl, tmux, starship, fzf, zoxide\n ➔ eza, bat, micro\n ➔ Adaptadores de portapapeles (xclip, xsel, wl-clipboard)\n ➔ Fuente JetBrainsMono Nerd Font"
         elif [[ "$line" =~ "OH MY ZSH" ]]; then
             echo -e "\033[1;36m=== 🐚 OH MY ZSH & PLUGINS ===\033[0m\n\nDescarga e integra el framework Zsh:\n ➔ Autosugerencias (zsh-autosuggestions)\n ➔ Resaltado de sintaxis (zsh-syntax-highlighting)\n ➔ Autocompletados avanzados (zsh-completions)"
         elif [[ "$line" =~ "OPCIONES SHELL" ]]; then
@@ -56,7 +56,7 @@ fzf_menu_principal() {
         elif [[ "$line" =~ "CAMBIAR SHELL" ]]; then
             echo -e "\033[1;36m=== 🔄 SHELL PREDETERMINADA ===\033[0m\n\nCambia tu Shell predeterminada de usuario a Zsh de forma segura mediante '\''chsh'\''."
         elif [[ "$line" =~ "BACKUPS" ]]; then
-            echo -e "\033[1;36m=== 🗂️ GESTOR DE RESPALDOS ===\033[0m\n\nAdministra tus puntos de restauración previos:\n ➔ Explora copias organizadas por fecha y hora\n ➔ Revisa diferencias y edita archivos con Micro\n ➔ Restaura configuraciones a su estado original"
+            echo -e "\033[1;36m=== 🗂️ GESTOR DE RESPALDOS ===\033[0m\n\Administra tus puntos de restauración previos:\n ➔ Explora copias organizadas por fecha y hora\n ➔ Revisa diferencias y edita archivos con Micro\n ➔ Restaura configuraciones a su estado original"
         elif [[ "$line" =~ "HELP ATAJOS" ]]; then
             echo -e "\033[1;36m=== 💡 AYUDA Y ATAJOS DE TECLADO ===\033[0m\n\nMuestra un menú interactivo con todos los atajos instalados:\n ➔ Comandos y prefijos de Tmux\n ➔ Atajos de búsqueda con FZF\n ➔ Alias modernos de Zsh (ls, cat, t, etc.)\n ➔ Teclas rápidas del sistema y de la Shell"    
         elif [[ "$line" =~ "SALIR" ]]; then
@@ -391,7 +391,6 @@ instalar_paquetes() {
     success "Paquetes de sistema y adaptadores de portapapeles instalados."
 }
 
-
 configurar_ghostty() {
     GHOSTTY_CONF_DIR="$REAL_HOME/.config/ghostty"
     GHOSTTY_CONF_FILE="$GHOSTTY_CONF_DIR/config"
@@ -476,7 +475,6 @@ configurar_portapapeles_universal() {
     success "¡Portapapeles universal habilitado!"
 }
 
-
 generar_zshrc() {
     ZSHRC_FILE="$REAL_HOME/.zshrc"
     local MARKER_START="# === ZSH4ME CONFIG START ==="
@@ -498,13 +496,14 @@ generar_zshrc() {
     fi
 
     local active_plugins="${ZSH4ME_PLUGINS:-git sudo zsh-autosuggestions zsh-syntax-highlighting}"
+    local active_theme="${ZSH4ME_THEME:-agnoster}"
 
     info "Inyectando configuración optimizada en $ZSHRC_FILE..."
     {
         echo ""
         echo "$MARKER_START"
         echo "export ZSH=\"\$HOME/.oh-my-zsh\""
-        echo "ZSH_THEME=\"\""
+        echo "ZSH_THEME=\"$active_theme\""
         echo "fpath=(\$ZSH/custom/plugins/zsh-completions/src \$fpath)"
         echo "plugins=($active_plugins)"
         echo "[ -f \$ZSH/oh-my-zsh.sh ] && source \$ZSH/oh-my-zsh.sh"
@@ -594,9 +593,9 @@ ejecutar_instalacion_completa() {
     cambiar_shell
 
     echo ""
-    echo -e "${VERDE_BRILLANTE}=====================================================${RESET}"
+    echo -e "${VERDE_BRILLANTE}====================================================s=================${RESET}"
     echo -e "${VERDE_BRILLANTE}   ¡PROCESO FINALIZADO SIN ERRORES!                  ${RESET}"
-    echo -e "${VERDE_BRILLANTE}=====================================================${RESET}"
+    echo -e "${VERDE_BRILLANTE}=====================================================================${RESET}"
     [ -d "$BACKUP_DIR" ] && echo -e "${AMARILLO} Archivos respaldados en:${RESET} ${BLANCO}$BACKUP_DIR${RESET}"
     read -p "Presione Enter para volver al menú..."
 }
@@ -680,52 +679,116 @@ gestionar_backups() {
     done
 }
 
+# ==============================================================================
+# SUBMÓDULO: GESTOR AVANZADO DE PLUGINS Y TEMAS (OH MY ZSH)
+# ==============================================================================
+
+gestionar_plugins_instalados() {
+    local ZSH_CUSTOM="$REAL_HOME/.oh-my-zsh/custom/plugins"
+    
+    if [ ! -d "$ZSH_CUSTOM" ] || [ -z "$(ls -A "$ZSH_CUSTOM" 2>/dev/null)" ]; then
+        warn "No tienes plugins personalizados instalados en $ZSH_CUSTOM"
+        read -p "Presione Enter para continuar..."
+        return
+    fi
+
+    while true; do
+        local plugin_a_eliminar
+        plugin_a_eliminar=$(ls -1 "$ZSH_CUSTOM" | fzf \
+            --ansi \
+            --height=50% \
+            --layout=reverse \
+            --border=rounded \
+            --prompt=" 🗑️ Seleccione Plugin para ELIMINAR (Esc para volver) ❯ " \
+            --header="--- PLUGINS ACTUALMENTE INSTALADOS EN SYSTEM ---" \
+            --preview="echo -e '\033[1;31mRuta:\033[0m '$ZSH_CUSTOM/{}'\n\n\033[1;33mContenido del directorio:\033[0m'; ls -la '$ZSH_CUSTOM/{}'")
+
+        [ -z "$plugin_a_eliminar" ] && break
+
+        read -rp "$(echo -e "${ROJO_BRILLANTE}⚠️ ¿Estás completamente seguro de eliminar '$plugin_a_eliminar'? [s/N]: ${RESET}")" confirm
+        if [[ "$confirm" =~ ^[Ss]$ ]]; then
+            rm -rf "$ZSH_CUSTOM/$plugin_a_eliminar"
+            success "El plugin '$plugin_a_eliminar' ha sido eliminado correctamente."
+            sleep 1.5
+        fi
+    done
+}
+
 configurar_oh_my_zsh() {
     ZSH_DIR="$REAL_HOME/.oh-my-zsh"
     ZSH_CUSTOM="$ZSH_DIR/custom"
 
     if [ ! -d "$ZSH_DIR" ]; then
-        info "Instalando Oh My Zsh vía Git Clone con URL corregida..."
+        info "Instalando Oh My Zsh vía Git Clone..."
         if ! git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "$ZSH_DIR"; then
-            error "No se pudo clonar el repositorio de Oh My Zsh. Revisa tu conexión a internet."
+            error "No se pudo clonar el repositorio de Oh My Zsh. Revisa tu conexión."
         fi
-        
-        if [ ! -f "$REAL_HOME/.zshrc" ]; then
-            cp "$ZSH_DIR/templates/zshrc.zsh-template" "$REAL_HOME/.zshrc"
-        fi
+        [ ! -f "$REAL_HOME/.zshrc" ] && cp "$ZSH_DIR/templates/zshrc.zsh-template" "$REAL_HOME/.zshrc"
     fi
 
     mkdir -p "$ZSH_CUSTOM/plugins"
 
-    info "Selecciona los plugins de Zsh que deseas instalar/activar:"
-    echo -e "${AMARILLO}💡 Usa TAB para marcar/desmarcar varios y ENTER para confirmar.${RESET}"
+    local modo
+    modo=$(printf "📥 Instalar / Activar nuevos Plugins\n🗑️ Listar y Eliminar Plugins Instalados\n❌ Volver al Menú Principal" | fzf \
+        --height=40% \
+        --layout=reverse \
+        --border=rounded \
+        --prompt=" Elija una acción para Oh My Zsh ❯ ")
+
+    if [[ "$modo" =~ "🗑️" ]]; then
+        gestionar_plugins_instalados
+        return
+    elif [[ "$modo" =~ "❌" || -z "$modo" ]]; then
+        return
+    fi
+
+    info "Cargando catálogo. Selecciona los plugins (Usa TAB para marcar varios y ENTER para procesar):"
+    
+    local preview_plugin_cmd='
+        case "{}" in
+            git) echo -e "\033[1;36m=== 🔌 PLUGIN: git ===\033[0m\n\nAñade cientos de alias útiles y funciones de autocompletado nativo para Git.\nEjemplos: ga (git add), gc!! (git commit --amend), gst (git status)." ;;
+            sudo) echo -e "\033[1;36m=== 🔌 PLUGIN: sudo ===\033[0m\n\nPresiona dos veces la tecla ESCAPE (o Ctrl+s) para anteponer automáticamente \"sudo\" al comando que acabas de escribir." ;;
+            zsh-autosuggestions) echo -e "\033[1;36m=== 🔌 PLUGIN: zsh-autosuggestions ===\033[0m\n\nSugiere comandos de forma asíncrona basados en tu historial mientras escribes.\nAcepta la sugerencia pulsando la Flecha Derecha." ;;
+            zsh-syntax-highlighting) echo -e "\033[1;36m=== 🔌 PLUGIN: zsh-syntax-highlighting ===\033[0m\n\nResaltado de sintaxis verde/rojo en tiempo real para la línea de comandos.\nTe avisa si un comando existe o tiene errores antes de pulsar Enter." ;;
+            zsh-completions) echo -e "\033[1;36m=== 🔌 PLUGIN: zsh-completions ===\033[0m\n\nAñade definiciones de autocompletado adicionales para cientos de herramientas de desarrollo comunes (Docker, Python, CLI externas, etc.)." ;;
+            zoxide) echo -e "\033[1;36m=== 🔌 PLUGIN: zoxide ===\033[0m\n\nReemplazo inteligente del comando \"cd\" que aprende de tus hábitos para permitir saltos rápidos usando alias con \"z\"." ;;
+            fzf) echo -e "\033[1;36m=== 🔌 PLUGIN: fzf ===\033[0m\n\nHabilita los atajos de teclado interactivos de búsqueda difusa global para archivos y comandos previos (Ctrl+R / Ctrl+T)." ;;
+            colored-man-pages) echo -e "\033[1;36m=== 🔌 PLUGIN: colored-man-pages ===\033[0m\n\nAñade colores ANSI estructurales y legibles a las páginas de ayuda convencionales de Linux (man)." ;;
+            web-search) echo -e "\033[1;36m=== 🔌 PLUGIN: web-search ===\033[0m\n\nTe permite abrir el navegador web directo desde la terminal.\nEjemplo: google zsh4me" ;;
+            command-not-found) echo -e "\033[1;36m=== 🔌 PLUGIN: command-not-found ===\033[0m\n\nSi escribes un comando que no tienes instalado, interactúa con el gestor del sistema para decirte exactamente qué paquete debes bajar." ;;
+            *) echo -e "Plugin personalizado. Sin previsualización disponible." ;;
+        esac
+    '
 
     local plugins_disponibles="git
 sudo
 zsh-autosuggestions
 zsh-syntax-highlighting
 zsh-completions
-fast-syntax-highlighting
-web-search
+zoxide
+fzf
 colored-man-pages
+web-search
 command-not-found"
 
     local plugins_seleccionados
     plugins_seleccionados=$(echo "$plugins_disponibles" | fzf \
         --multi \
-        --height=45% \
+        --height=60% \
         --layout=reverse \
         --border=rounded \
-        --prompt=" 🧩 Seleccionar Plugins (TAB para elegir) > " \
-        --header="--- GESTOR DE PLUGINS OH MY ZSH ---")
+        --prompt=" 🧩 Seleccionar Plugins (TAB para elegir) ❯ " \
+        --header="--- INSTALACIÓN CON PREVISUALIZACIÓN DE DESCRIPCIÓN ---" \
+        --preview-window="right:55%:border-rounded:wrap" \
+        --preview="$preview_plugin_cmd")
 
     if [ -z "$plugins_seleccionados" ]; then
-        plugins_seleccionados="git sudo zsh-autosuggestions zsh-syntax-highlighting"
+        plugins_seleccionados="git sudo zsh-autosuggestions zsh-syntax-highlighting zsh-completions zoxide fzf colored-man-pages"
     fi
 
     PLUGINS_ARRAY=$(echo "$plugins_seleccionados" | tr '\n' ' ')
 
-    info "Instalando los plugins seleccionados..."
+    info "Instalando y clonando repositorios necesarios..."
     
     [[ "$plugins_seleccionados" =~ "zsh-autosuggestions" ]] && \
         [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ] && \
@@ -739,17 +802,23 @@ command-not-found"
         [ ! -d "$ZSH_CUSTOM/plugins/zsh-completions" ] && \
         git clone --depth=1 https://github.com/zsh-users/zsh-completions.git "$ZSH_CUSTOM/plugins/zsh-completions"
 
-    [[ "$plugins_seleccionados" =~ "fast-syntax-highlighting" ]] && \
-        [ ! -d "$ZSH_CUSTOM/plugins/fast-syntax-highlighting" ] && \
-        git clone --depth=1 https://github.com/zdharma-continuum/fast-syntax-highlighting.git "$ZSH_CUSTOM/plugins/fast-syntax-highlighting"
-
     export ZSH4ME_PLUGINS="$PLUGINS_ARRAY"
 
-    if [ -d "$ZSH_DIR" ]; then
-        chown -R "$REAL_USER:$REAL_USER" "$ZSH_DIR"
-    fi
-    
-    success "Plugins configurados con éxito: $ZSH4ME_PLUGINS"
+    info "Selecciona el tema visual para Oh My Zsh:"
+    local temas_disponibles="af-magic\nagnoster\nrobbyrussell\nys\navit\ndracula\nlambda\ngnzh"
+    local tema_seleccionado
+    tema_seleccionado=$(echo -e "$temas_disponibles" | fzf \
+        --height=40% \
+        --layout=reverse \
+        --border=rounded \
+        --prompt=" 🎨 Seleccionar Tema ❯ " \
+        --header="--- GESTOR DE TEMAS OH MY ZSH ---")
+
+    [ -z "$tema_seleccionado" ] && tema_seleccionado="af-magic"
+    export ZSH4ME_THEME="$tema_seleccionado"
+
+    [ -d "$ZSH_DIR" ] && chown -R "$REAL_USER:$REAL_USER" "$ZSH_DIR"
+    success "Plugins configurados con éxito en memoria: $ZSH4ME_PLUGINS"
 }
 
 # ==============================================================================
@@ -782,8 +851,9 @@ menu() {
 8. 🔄 | CAMBIAR SHELL | Establecer Zsh como la shell predeterminada.
 9. 🗂️ | BACKUPS       | Explorar, editar o restaurar copias de seguridad.
 10. 💡| HELP ATAJOS   | Ver atajos de teclado, alias y funciones integradas.
-11. ❌| SALIR        | Salir del administrador zsh4me"
+11. ❌| SALIR         | Salir del administrador zsh4me"
 
+        local seleccion
         seleccion=$(echo -e "$opciones" | fzf_menu_principal)
 
         if [ $? -ne 0 ] || [ -z "$seleccion" ]; then salir; fi
