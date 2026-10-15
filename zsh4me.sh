@@ -84,7 +84,10 @@ crear_backup() {
     local archivo_origen="$1"
 
     if [ -e "$archivo_origen" ]; then
+        # Aseguramos que la carpeta base y el usuario tengan control total
         mkdir -p "$BACKUP_DIR"
+        chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.zsh4me_backups" 2>/dev/null || true
+        
         local nombre_base=$(basename "$archivo_origen")
         local destino="$BACKUP_DIR/$nombre_base"
 
@@ -690,35 +693,33 @@ configurar_oh_my_zsh() {
     ZSH_CUSTOM="$ZSH_DIR/custom"
 
     if [ ! -d "$ZSH_DIR" ]; then
-        info "Instalando Oh My Zsh directamente vía Git Clone para evitar bloqueos de red..."
+        info "Instalando Oh My Zsh directamente vía Git Clone..."
         
-        # Clonamos el repositorio oficial directamente saltándonos los scripts de descarga
-        if ! git clone --depth=1 https://github.com "$ZSH_DIR"; then
+        # URL corregida para Oh My Zsh
+        if ! git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "$ZSH_DIR"; then
             error "No se pudo clonar el repositorio de Oh My Zsh. Revisa tu conexión a internet o el estado de GitHub."
         fi
         
-        # Creamos una plantilla básica de .zshrc si no existe para que OMZ funcione de inmediato
         if [ ! -f "$REAL_HOME/.zshrc" ]; then
             cp "$ZSH_DIR/templates/zshrc.zsh-template" "$REAL_HOME/.zshrc"
         fi
     fi
 
-    # Forzamos la creación estructurada del directorio de plugins
     mkdir -p "$ZSH_CUSTOM/plugins"
 
     info "Instalando plugins de Zsh..."
-    [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ] && git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
-    [ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ] && git clone --depth=1 https://github.com "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
-    [ ! -d "$ZSH_CUSTOM/plugins/zsh-completions" ] && git clone --depth=1 https://github.com "$ZSH_CUSTOM/plugins/zsh-completions"
+    [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ] && git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions.git "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
     
-    # Aseguramos los permisos correctos asignándolos a tu usuario real
+    # URLs corregidas para los plugins de resaltado y completados
+    [ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ] && git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting.git "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
+    [ ! -d "$ZSH_CUSTOM/plugins/zsh-completions" ] && git clone --depth=1 https://github.com/zsh-users/zsh-completions.git "$ZSH_CUSTOM/plugins/zsh-completions"
+    
     if [ -d "$ZSH_DIR" ]; then
         chown -R "$REAL_USER:$REAL_USER" "$ZSH_DIR"
     fi
     
     success "Plugins de Zsh listos."
 }
-
 
 
 
