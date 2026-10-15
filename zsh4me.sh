@@ -22,7 +22,7 @@ ROJO_BRILLANTE='\e[91m'
 BLANCO='\e[97m'
 
 NC='\033[0m'
-ver="v.2.9 empezamos test"
+ver="v.2.9.2 test completo"
 
 info() { echo -e "${AZUL_BRILLANTE}[INFO]${RESET} $1"; }
 success() { echo -e "${VERDE_BRILLANTE}[OK]${RESET} $1"; }
@@ -35,7 +35,6 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_DIR="$REAL_HOME/.zsh4me_backups/backup_$TIMESTAMP"
 
 fzf_menu_principal() {
-    # Script inline que limpia el string seleccionado y evalúa el caso exacto
     local preview_cmd='
         line="{}"
         if [[ "$line" =~ "INSTALACIÓN" ]]; then
@@ -84,10 +83,8 @@ crear_backup() {
     local archivo_origen="$1"
 
     if [ -e "$archivo_origen" ]; then
-        # Aseguramos que la carpeta base y el usuario tengan control total
         mkdir -p "$BACKUP_DIR"
         chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.zsh4me_backups" 2>/dev/null || true
-        
         local nombre_base=$(basename "$archivo_origen")
         local destino="$BACKUP_DIR/$nombre_base"
 
@@ -331,7 +328,6 @@ instalar_paquetes() {
             if ! command -v starship &>/dev/null; then curl -sS https://starship.rs | sh -s -- -y; fi
             ;;
         dnf)
-            # Preguntar si se desea instalar la terminal Ghostty vía COPR (Recomendado)
             if ! command -v ghostty &>/dev/null; then
                 echo -e "\n${CIAN}🤖 GHOSTTY NOT DETECTED${RESET}"
                 read -rp "$(echo -e "${AMARILLO}¿Deseas instalar Ghostty usando el repositorio COPR recomendado? (S/n): ${RESET}")" install_ghostty
@@ -349,27 +345,20 @@ instalar_paquetes() {
                 success "Ghostty ya se encuentra instalado en el sistema."
             fi
 
-            # Instalación de herramientas estándar por repositorio
             sudo dnf install -y --setopt=strict=0 --setopt=install_weak_deps=False --no-best zsh git curl tmux starship fzf zoxide eza bat micro xclip xsel wl-clipboard
 
-           # Instalación automática de la fuente JetBrainsMono Nerd Font si no existe
-            # Instalación automática de la fuente JetBrainsMono Nerd Font si no existe
             if ! fc-list | grep -i "JetBrainsMono" &>/dev/null; then
                 info "Instalando JetBrainsMono Nerd Font mediante paquete comprimido compacto..."
                 local font_dir="$REAL_HOME/.local/share/fonts/JetBrainsMono"
                 mkdir -p "$font_dir"
                 
-                # Limpieza total de residuos anteriores
                 rm -f "$font_dir/JetBrainsMono.tar.xz"
                 rm -f "$font_dir/JetBrainsMono.zip"
 
-                # Descargamos el formato tar.xz (pesa menos y GitHub no suele capar su redirección)
-                # Forzamos un User-Agent común para evitar bloqueos automatizados de GitHub
                 curl -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64)" \
                      -fLo "$font_dir/JetBrainsMono.tar.xz" -L \
                      "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz"
                 
-                # Si fallase curl por lo que sea, intentamos con wget como fallback directo
                 if [ ! -f "$font_dir/JetBrainsMono.tar.xz" ] || [ $(stat -c%s "$font_dir/JetBrainsMono.tar.xz") -lt 1000000 ]; then
                     warn "Curl bloqueado por la CDN. Reintentando descarga segura con wget..."
                     rm -f "$font_dir/JetBrainsMono.tar.xz"
@@ -377,7 +366,6 @@ instalar_paquetes() {
                          "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz" || true
                 fi
 
-                # Verificación final de integridad física del archivo tar.xz
                 if [ -f "$font_dir/JetBrainsMono.tar.xz" ] && [ $(stat -c%s "$font_dir/JetBrainsMono.tar.xz") -gt 1000000 ]; then
                     info "Descomprimiendo tipografías..."
                     tar -xJf "$font_dir/JetBrainsMono.tar.xz" -C "$font_dir"
@@ -393,12 +381,9 @@ instalar_paquetes() {
             else
                 success "JetBrainsMono Nerd Font ya está presente en el sistema."
             fi
-
-
             ;;
     esac
     
-    # Configuración global para Micro Editor (Usar portapapeles del SO)
     mkdir -p "$REAL_HOME/.config/micro"
     echo '{"clipboard": "external"}' > "$REAL_HOME/.config/micro/settings.json"
     chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.config/micro"
@@ -494,6 +479,9 @@ configurar_portapapeles_universal() {
 
 generar_zshrc() {
     ZSHRC_FILE="$REAL_HOME/.zshrc"
+    local MARKER_START="# === ZSH4ME CONFIG START ==="
+    local MARKER_END="# === ZSH4ME CONFIG END ==="
+    
     mkdir -p "$REAL_HOME/.local/bin" "$REAL_HOME/bin"
 
     if [ -f "$ZSHRC_FILE" ]; then
@@ -503,37 +491,44 @@ generar_zshrc() {
         chown "$REAL_USER:$REAL_USER" "$ZSHRC_FILE"
     fi
 
-    if ! grep -q "# === ZSH4ME CONFIG START ===" "$ZSHRC_FILE"; then
-        cat << 'EOF' >> "$ZSHRC_FILE"
-
-# === ZSH4ME CONFIG START ===
-export ZSH="$HOME/.oh-my-zsh"
-ZSH_THEME=""
-fpath=($ZSH/custom/plugins/zsh-completions/src $fpath)
-plugins=(git sudo zsh-autosuggestions zsh-syntax-highlighting zsh-completions)
-[ -f $ZSH/oh-my-zsh.sh ] && source $ZSH/oh-my-zsh.sh
-
-autoload -Uz compinit && compinit
-zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'
-zstyle ':completion:*' menu select
-
-ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#6c7086,bold"
-ZSH_AUTOSUGGEST_STRATEGY=(history completion)
-
-HISTFILE=~/.zsh_history
-HISTSIZE=50000
-SAVEHIST=50000
-setopt HIST_IGNORE_DUPS
-setopt HIST_IGNORE_ALL_DUPS
-setopt SHARE_HISTORY
-
-command -v zoxide &>/dev/null && eval "$(zoxide init zsh)"
-[ -f /usr/share/fzf/key-bindings.zsh ] && source /usr/share/fzf/key-bindings.zsh
-[ -f /usr/share/fzf/completion.zsh ] && source /usr/share/fzf/completion.zsh
-command -v starship &>/dev/null && eval "$(starship init zsh)"
-# === ZSH4ME CONFIG END ===
-EOF
+    if grep -q "$MARKER_START" "$ZSHRC_FILE" 2>/dev/null; then
+        info "Actualizando bloque de configuración de ZSH4ME en .zshrc..."
+        awk "/$MARKER_START/{p=1;next} /$MARKER_END/{p=0;next} !p" "$ZSHRC_FILE" > "${ZSHRC_FILE}.tmp"
+        mv "${ZSHRC_FILE}.tmp" "$ZSHRC_FILE"
     fi
+
+    local active_plugins="${ZSH4ME_PLUGINS:-git sudo zsh-autosuggestions zsh-syntax-highlighting}"
+
+    info "Inyectando configuración optimizada en $ZSHRC_FILE..."
+    {
+        echo ""
+        echo "$MARKER_START"
+        echo "export ZSH=\"\$HOME/.oh-my-zsh\""
+        echo "ZSH_THEME=\"\""
+        echo "fpath=(\$ZSH/custom/plugins/zsh-completions/src \$fpath)"
+        echo "plugins=($active_plugins)"
+        echo "[ -f \$ZSH/oh-my-zsh.sh ] && source \$ZSH/oh-my-zsh.sh"
+        echo ""
+        echo "autoload -Uz compinit && compinit"
+        echo "zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'"
+        echo "zstyle ':completion:*' menu select"
+        echo ""
+        echo "ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE=\"fg=#6c7086,bold\""
+        echo "ZSH_AUTOSUGGEST_STRATEGY=(history completion)"
+        echo ""
+        echo "HISTFILE=~/.zsh_history"
+        echo "HISTSIZE=50000"
+        echo "SAVEHIST=50000"
+        echo "setopt HIST_IGNORE_DUPS"
+        echo "setopt HIST_IGNORE_ALL_DUPS"
+        echo "setopt SHARE_HISTORY"
+        echo ""
+        echo "command -v zoxide &>/dev/null && eval \"\$(zoxide init zsh)\""
+        echo "[ -f /usr/share/fzf/key-bindings.zsh ] && source /usr/share/fzf/key-bindings.zsh"
+        echo "[ -f /usr/share/fzf/completion.zsh ] && source /usr/share/fzf/completion.zsh"
+        echo "command -v starship &>/dev/null && eval \"\$(starship init zsh)\""
+        echo "$MARKER_END"
+    } >> "$ZSHRC_FILE"
 
     if ! grep -q "# === ZSH4ME ALIASES START ===" "$ZSHRC_FILE"; then
         cat << 'EOF' >> "$ZSHRC_FILE"
@@ -627,7 +622,6 @@ gestionar_backups() {
     fi
 
     while true; do
-        # 1. Seleccionar la carpeta del Respaldo (Backup por Fecha/Timestamp)
         local backup_folder
         backup_folder=$(find "$BASE_BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -r | sed "s|^$BASE_BACKUP_DIR/||" | fzf \
             --ansi \
@@ -642,7 +636,6 @@ gestionar_backups() {
 
         local target_folder="$BASE_BACKUP_DIR/$backup_folder"
 
-        # 2. Seleccionar el archivo dentro de esa carpeta de backup
         local selected_file
         selected_file=$(find "$target_folder" -type f 2>/dev/null | sed "s|^$target_folder/||" | fzf \
             --ansi \
@@ -657,7 +650,6 @@ gestionar_backups() {
 
         local full_file_path="$target_folder/$selected_file"
 
-        # 3. Menú de Acción para el archivo seleccionado
         local accion
         accion=$(printf "📝 Editar / Ver con Micro\n🔄 Restaurar Backup a su ubicación original\n❌ Cancelar" | fzf \
             --height=35% \
@@ -674,7 +666,7 @@ gestionar_backups() {
                 local original_dest="$REAL_HOME/$selected_file"
                 read -rp "¿Confirmas sobrescribir '$original_dest' con este backup? (s/N): " confirm
                 if [[ "$confirm" =~ ^[Ss]$ ]]; then
-                    crear_backup "$original_dest" # Backup preventivo antes de sobrescribir
+                    crear_backup "$original_dest"
                     cp -rf "$full_file_path" "$original_dest"
                     chown -R "$REAL_USER:$REAL_USER" "$original_dest" 2>/dev/null || true
                     success "Backup restaurado exitosamente en: $original_dest"
@@ -693,11 +685,9 @@ configurar_oh_my_zsh() {
     ZSH_CUSTOM="$ZSH_DIR/custom"
 
     if [ ! -d "$ZSH_DIR" ]; then
-        info "Instalando Oh My Zsh directamente vía Git Clone..."
-        
-        # URL corregida para Oh My Zsh
+        info "Instalando Oh My Zsh vía Git Clone con URL corregida..."
         if ! git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "$ZSH_DIR"; then
-            error "No se pudo clonar el repositorio de Oh My Zsh. Revisa tu conexión a internet o el estado de GitHub."
+            error "No se pudo clonar el repositorio de Oh My Zsh. Revisa tu conexión a internet."
         fi
         
         if [ ! -f "$REAL_HOME/.zshrc" ]; then
@@ -707,21 +697,60 @@ configurar_oh_my_zsh() {
 
     mkdir -p "$ZSH_CUSTOM/plugins"
 
-    info "Instalando plugins de Zsh..."
-    [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ] && git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions.git "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
+    info "Selecciona los plugins de Zsh que deseas instalar/activar:"
+    echo -e "${AMARILLO}💡 Usa TAB para marcar/desmarcar varios y ENTER para confirmar.${RESET}"
+
+    local plugins_disponibles="git
+sudo
+zsh-autosuggestions
+zsh-syntax-highlighting
+zsh-completions
+fast-syntax-highlighting
+web-search
+colored-man-pages
+command-not-found"
+
+    local plugins_seleccionados
+    plugins_seleccionados=$(echo "$plugins_disponibles" | fzf \
+        --multi \
+        --height=45% \
+        --layout=reverse \
+        --border=rounded \
+        --prompt=" 🧩 Seleccionar Plugins (TAB para elegir) > " \
+        --header="--- GESTOR DE PLUGINS OH MY ZSH ---")
+
+    if [ -z "$plugins_seleccionados" ]; then
+        plugins_seleccionados="git sudo zsh-autosuggestions zsh-syntax-highlighting"
+    fi
+
+    PLUGINS_ARRAY=$(echo "$plugins_seleccionados" | tr '\n' ' ')
+
+    info "Instalando los plugins seleccionados..."
     
-    # URLs corregidas para los plugins de resaltado y completados
-    [ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ] && git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting.git "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
-    [ ! -d "$ZSH_CUSTOM/plugins/zsh-completions" ] && git clone --depth=1 https://github.com/zsh-users/zsh-completions.git "$ZSH_CUSTOM/plugins/zsh-completions"
-    
+    [[ "$plugins_seleccionados" =~ "zsh-autosuggestions" ]] && \
+        [ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ] && \
+        git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions.git "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
+
+    [[ "$plugins_seleccionados" =~ "zsh-syntax-highlighting" ]] && \
+        [ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ] && \
+        git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting.git "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
+
+    [[ "$plugins_seleccionados" =~ "zsh-completions" ]] && \
+        [ ! -d "$ZSH_CUSTOM/plugins/zsh-completions" ] && \
+        git clone --depth=1 https://github.com/zsh-users/zsh-completions.git "$ZSH_CUSTOM/plugins/zsh-completions"
+
+    [[ "$plugins_seleccionados" =~ "fast-syntax-highlighting" ]] && \
+        [ ! -d "$ZSH_CUSTOM/plugins/fast-syntax-highlighting" ] && \
+        git clone --depth=1 https://github.com/zdharma-continuum/fast-syntax-highlighting.git "$ZSH_CUSTOM/plugins/fast-syntax-highlighting"
+
+    export ZSH4ME_PLUGINS="$PLUGINS_ARRAY"
+
     if [ -d "$ZSH_DIR" ]; then
         chown -R "$REAL_USER:$REAL_USER" "$ZSH_DIR"
     fi
     
-    success "Plugins de Zsh listos."
+    success "Plugins configurados con éxito: $ZSH4ME_PLUGINS"
 }
-
-
 
 # ==============================================================================
 # BUCLE DE MENÚ PRINCIPAL
